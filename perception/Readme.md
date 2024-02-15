@@ -24,7 +24,11 @@ To set up, follow these steps:
      cp ./continuous_detection2.launch <path_to_tiago_public_ws>/src/apriltag_ros/apriltag_ros/launch/
      cp -r ./apriltag_to_table_info <path_to_tiago_public_ws>/src/
      ```
-
+### Resolving dependencies
+This command will attempt to install any missing dependencies for packages in your workspace. It is neccesary when you install ApriTags packages for the fisrt time.
+```
+rosdep install --from-paths src --ignore-src -r -y
+```
 ### Launching Nodes
 - To launch nodes (you may need to run `catkin build` the first time):
   1. In each terminal, navigate to `tiago_public_ws` and source the setup file:
