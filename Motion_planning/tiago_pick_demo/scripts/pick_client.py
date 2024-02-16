@@ -41,6 +41,10 @@ import cv2
 from cv_bridge import CvBridge
 from tf.transformations import quaternion_from_euler
 
+import tf2_ros
+import tf2_geometry_msgs
+from apriltag_ros.msg import AprilTagDetectionArray
+
 from moveit_msgs.msg import MoveItErrorCodes
 moveit_error_dict = {}
 for name in MoveItErrorCodes.__dict__.keys():
@@ -70,12 +74,21 @@ class PickAruco(object):
 		self.bridge = CvBridge()
 		self.tfBuffer = tf2_ros.Buffer()
 		self.tf_l = tf2_ros.TransformListener(self.tfBuffer)
+
+		self.tf_buffer = tf2_ros.Buffer()
+		self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+		rospy.Subscriber("/tag_detections", AprilTagDetectionArray,self.process_info)
+
 		rospy.loginfo("Waiting for /pickup_pose AS...")
 		self.pick_as = SimpleActionClient('/pickup_pose', PickUpPoseAction) 	# Create an action client for the '/pickup_pose' action server
 		time.sleep(1.0)
 		if not self.pick_as.wait_for_server(rospy.Duration(20)):
 			rospy.logerr("Could not connect to /pickup_pose AS")
 			exit()
+
+		self.set_table_as = SimpleActionClient('/set_table', PickUpPoseAction) 	# Create an action client for the '/clean_table' action server
+		self.set_table_as.wait_for_server()
+
 		rospy.loginfo("Waiting for /place_pose AS...")
 		self.place_as = SimpleActionClient('/place_pose', PickUpPoseAction) 
 
@@ -104,10 +117,21 @@ class PickAruco(object):
 		return s[1:] if s.startswith("/") else s
 		
 	def pick_aruco(self, string_operation):
-
-#=============================================================== Getting the pose of the aruco marker ===============================================================
 		self.prepare_robot()		# Lower head.
 
+#======================================================================== Getting The table pose from Apriltag ==================================================
+		
+		detector = AprilTagDetector()
+		table_info = PickUpPoseGoal()
+		table_info.object_pose.pose.orientation.y = detector.tag_info[1]
+		table_info.object_pose.pose.orientation.x = detector.tag_info[2]
+		table_info.object_pose.pose.position.x = self.tag_pose_relative_to_base_stamped.pose.position.x
+
+	
+#==============================================================================================================================================================
+
+
+#=============================================================== Getting the pose of the aruco marker ===============================================================
 		rospy.sleep(2.0)
 		rospy.loginfo("spherical_grasp_gui: Waiting for an aruco detection")
 
@@ -139,6 +163,12 @@ class PickAruco(object):
 			pick_g = PickUpPoseGoal()		# The Goal message for the action server
 #==============================================================================================================================================================
 		if string_operation == "pick":
+
+			table_info.object_pose.header.frame_id = 'base_footprint'
+			table_info.object_pose.pose.orientation.w = 1.0
+			rospy.loginfo("Setting table pose based on AprilTag detection")
+			self.set_table_as.send_goal_and_wait(table_info)
+			rospy.loginfo("Done!")
 
 			rospy.loginfo("Setting cube pose based on ArUco detection")
 			pick_g.object_pose.pose.position = aruco_ps.pose.position
@@ -173,6 +203,44 @@ class PickAruco(object):
 			pick_g.object_pose.pose.position.z += 0.07
 			self.place_as.send_goal_and_wait(pick_g)
 			rospy.loginfo("Done!")
+
+	def process_info(self, msg):
+		# tag id: [table_height, table_width, table_depth]
+		id_to_info = {0:[.6, 3, .8], 1:[.6, 1, 1]}
+		self.table_detected = False
+		
+		for detection in msg.detections:
+			tag_id = detection.id[0]
+			if (tag_id == 1): # to change, to be sent by task planning
+				#rospy.loginfo(f"apriltag id: {tag_id}")
+				self.tag_info = id_to_info[tag_id]
+				#rospy.loginfo(f"height: {tag_info[0]}")
+				#rospy.loginfo(f"width: {tag_info[1]}")
+				#rospy.loginfo(f"depth: {tag_info[2]}")
+				# to add info on height, width, depth
+				
+				tag_pose_relative_to_camera = detection.pose.pose.pose
+				# transform to PoseStamped
+				tag_pose_relative_to_camera_stamped = PoseStamped()
+				tag_pose_relative_to_camera_stamped.header.stamp = rospy.Time.now()
+				tag_pose_relative_to_camera_stamped.header.frame_id = "xtion_rgb_optical_frame"
+				tag_pose_relative_to_camera_stamped.pose = tag_pose_relative_to_camera
+
+				#rospy.loginfo(f"Pose relative to camera: {tag_pose_relative_to_camera}") # debugging
+				
+				try:
+					transform = self.tf_buffer.lookup_transform("base_footprint", "xtion_rgb_optical_frame", rospy.Time(0), rospy.Duration(1.0))
+					rospy.loginfo(f"transform: {transform}")
+				except Exception as e:
+					rospy.loginfo("failed to lookup transform")
+					rospy.loginfo(e)
+
+				self.tag_pose_relative_to_base_stamped = tf2_geometry_msgs.do_transform_pose(tag_pose_relative_to_camera_stamped, transform)
+				tag_pose_relative_to_base = self.tag_pose_relative_to_base_stamped.pose
+				self.table_detected = True
+
+				#rospy.loginfo(f"transformed pose: {tag_pose_relative_to_base}")
+
 
 	def lower_head(self):
 		rospy.loginfo("Moving head down")
@@ -255,6 +323,53 @@ class PickAruco(object):
 			group_arm_torso.execute(plan, wait=True)
 			rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
 			moveit_commander.roscpp_shutdown()
+		
+
+class AprilTagDetector:
+    def __init__(self):
+        self.latest_msg = None
+        rospy.init_node("apriltag_detection_lister", anonymous=True)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        rospy.Subscriber("/tag_detections", AprilTagDetectionArray, self.process_info)
+        rospy.spin()
+
+    def process_info(self, msg):
+		id_to_info = {0:[.6, 3, .8], 1:[.6, 1, 1]}
+		self.table_detected = False
+		
+		for detection in msg.detections:
+			tag_id = detection.id[0]
+			if (tag_id == 1): # to change, to be sent by task planning
+				#rospy.loginfo(f"apriltag id: {tag_id}")
+				self.tag_info = id_to_info[tag_id]
+				#rospy.loginfo(f"height: {tag_info[0]}")
+				#rospy.loginfo(f"width: {tag_info[1]}")
+				#rospy.loginfo(f"depth: {tag_info[2]}")
+				# to add info on height, width, depth
+				
+				tag_pose_relative_to_camera = detection.pose.pose.pose
+				# transform to PoseStamped
+				tag_pose_relative_to_camera_stamped = PoseStamped()
+				tag_pose_relative_to_camera_stamped.header.stamp = rospy.Time.now()
+				tag_pose_relative_to_camera_stamped.header.frame_id = "xtion_rgb_optical_frame"
+				tag_pose_relative_to_camera_stamped.pose = tag_pose_relative_to_camera
+
+				#rospy.loginfo(f"Pose relative to camera: {tag_pose_relative_to_camera}") # debugging
+				
+				try:
+					transform = self.tf_buffer.lookup_transform("base_footprint", "xtion_rgb_optical_frame", rospy.Time(0), rospy.Duration(1.0))
+					rospy.loginfo(f"transform: {transform}")
+				except Exception as e:
+					rospy.loginfo("failed to lookup transform")
+					rospy.loginfo(e)
+
+				self.tag_pose_relative_to_base_stamped = tf2_geometry_msgs.do_transform_pose(tag_pose_relative_to_camera_stamped, transform)
+				# tag_pose_relative_to_base = self.tag_pose_relative_to_base_stamped.pose
+				self.table_detected = True
+
+				#rospy.loginfo(f"transformed pose: {tag_pose_relative_to_base}")
+
 
 if __name__ == '__main__':
 	rospy.init_node('pick_aruco_demo')

@@ -126,21 +126,42 @@ class PickAndPlaceServer(object):
 		else:
 			rospy.loginfo("Found links to allow contacts: " + str(self.links_to_allow_contact))
 #############################################################################
+		self.set_table_as = SimpleActionServer(
+			'/set_table', PickUpPoseAction,
+			execute_cb=self.set_table_cb, auto_start=False)
+		self.set_table_as.start()
+
 		self.pick_as = SimpleActionServer(
 			'/pickup_pose', PickUpPoseAction,
 			execute_cb=self.pick_cb, auto_start=False)	# A callback function to execute when the action is called. In this case, the callback is self.pick_cb.
 		self.pick_as.start()		# This starts the action server and allows it to begin accepting goals.
+
 
 		self.place_as = SimpleActionServer(
 			'/place_pose', PickUpPoseAction,
 			execute_cb=self.place_cb, auto_start=False)
 		self.place_as.start()
 #############################################################################
+	
+	def set_table_cb(self, goal):		
+		"""
+		:type goal: PickUpPoseGoal
+		"""
+		self.table_pose = copy.deepcopy(goal.object_pose)	# copy goal from the client
+		error_code = 1
+		p_res = PickUpPoseResult()
+		p_res.error_code = error_code
+		if error_code != 1:
+			self.pick_as.set_aborted(p_res)
+		else:
+			self.pick_as.set_succeeded(p_res)
+
+
 	def pick_cb(self, goal):
 		"""
 		:type goal: PickUpPoseGoal
 		"""
-		error_code = self.grasp_object(goal.object_pose)
+		error_code = self.grasp_object(goal.object_pose, self.table_pose)
 		p_res = PickUpPoseResult()
 		p_res.error_code = error_code
 		if error_code != 1:
@@ -182,45 +203,8 @@ class PickAndPlaceServer(object):
 
 		rospy.loginfo("'" + object_name + "'' is in scene!")
 
-	def process_info(self, msg):
-		# tag id: [table_height, table_width, table_depth]
-		id_to_info = {0:[.6, 3, .8], 1:[.6, 1, 1]}
-		self.table_detected = False
-		
-		for detection in msg.detections:
-			tag_id = detection.id[0]
-			if (tag_id == 1): # to change, to be sent by task planning
-				#rospy.loginfo(f"apriltag id: {tag_id}")
-				self.tag_info = id_to_info[tag_id]
-				#rospy.loginfo(f"height: {tag_info[0]}")
-				#rospy.loginfo(f"width: {tag_info[1]}")
-				#rospy.loginfo(f"depth: {tag_info[2]}")
-				# to add info on height, width, depth
 				
-				tag_pose_relative_to_camera = detection.pose.pose.pose
-				# transform to PoseStamped
-				tag_pose_relative_to_camera_stamped = PoseStamped()
-				tag_pose_relative_to_camera_stamped.header.stamp = rospy.Time.now()
-				tag_pose_relative_to_camera_stamped.header.frame_id = "xtion_rgb_optical_frame"
-				tag_pose_relative_to_camera_stamped.pose = tag_pose_relative_to_camera
-
-				#rospy.loginfo(f"Pose relative to camera: {tag_pose_relative_to_camera}") # debugging
-				
-				try:
-					transform = self.tf_buffer.lookup_transform("base_footprint", "xtion_rgb_optical_frame", rospy.Time(0), rospy.Duration(1.0))
-					rospy.loginfo(f"transform: {transform}")
-				except Exception as e:
-					rospy.loginfo("failed to lookup transform")
-					rospy.loginfo(e)
-
-				self.tag_pose_relative_to_base_stamped = tf2_geometry_msgs.do_transform_pose(tag_pose_relative_to_camera_stamped, transform)
-				tag_pose_relative_to_base = self.tag_pose_relative_to_base_stamped.pose
-				self.table_detected = True
-
-				#rospy.loginfo(f"transformed pose: {tag_pose_relative_to_base}")
-				
-
-	def grasp_object(self, object_pose):
+	def grasp_object(self, object_pose,table_pose):
 		rospy.loginfo("Removing any previous 'part' object")
 		self.scene.remove_attached_object("arm_tool_link")
 		self.scene.remove_world_object("part")
@@ -237,21 +221,14 @@ class PickAndPlaceServer(object):
 		self.scene.add_box("part", object_pose, (self.object_depth, self.object_width, self.object_height))
 
 		rospy.loginfo("Second%s", object_pose.pose)
-		table_pose = copy.deepcopy(object_pose)
+		rospy.loginfo("Table: %s", table_pose.pose)
 		###################################################### Modify this table size ########################################
-		rospy.init_node("apriltag_detection_lister", anonymous=True)
-		self.tf_buffer = tf2_ros.Buffer()
-		self.tf_listener = tf2_ros.TransformListener(tf_buffer)
-		rospy.Subscriber("/tag_detections", AprilTagDetectionArray,self.process_info)
-
-		while (not self.table_detected):
-			rospy.sleep(1.0)
 
 		#define a virtual table below the object
 		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.015
-		table_width  = self.tag_info[1]
-		table_depth  = self.tag_info[2]
-		table_pose.pose.position.x = self.tag_pose_relative_to_base_stamped.pose.position.x
+		table_width  = self.table_pose.orientation.y
+		table_depth  = self.table_pose.orientation.x
+		table_pose.pose.position.x = self.table_pose.pose.position.x
 		table_pose.pose.position.z = table_height/2
 
 		self.scene.add_box("table", table_pose, (table_depth, table_width, table_height))		# What does this do? ############

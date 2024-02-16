@@ -20,18 +20,20 @@ def clean_table():
     group_arm_torso.set_max_velocity_scaling_factor(1.0)
     group_arm_torso.set_planning_time(10.0)  # Increase planning time
 
-    sponge_width = 0.05
-    table_width = 0.5
-    table_depth = 0.3
+    ## These are the maximum specifications of the table for which the arm can clean in one go. ##
+    sponge_width = 0.1
+    table_width = 0.76
+    table_depth = 0.4
     table_center_y = 0.0
-    table_center_x = 0.4+0.2
-    table_center_z = 0.8+0.05
-    step_num = math.floor(table_width/(sponge_width))  # Decrease number of waypoints
+    table_center_x = 0.4+table_depth/2+0.1       # red axis
+    table_center_z = 0.8
+    step_num = 3
+    # step_num = math.floor(table_width/(sponge_width))  # Decrease number of waypoints
     
     waypoints = []
     waypoints_y = np.linspace(table_center_y-table_width/2+sponge_width/2, table_center_y+table_width/2-sponge_width/2, step_num)
-    waypoints_x = [table_center_x-table_depth/2+sponge_width/2, table_center_x+table_depth/2-sponge_width/2]
-    waypoints_z_angle = np.linspace(-45, 45, step_num)
+    waypoints_x = [table_center_x-table_depth/2+sponge_width/2, table_center_x+table_depth/2-sponge_width/2-0.05]
+    waypoints_z_angle = np.linspace(-60, 60, step_num)
 
     for i in range(step_num):
         for x in waypoints_x:
