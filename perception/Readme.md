@@ -24,7 +24,11 @@ To set up, follow these steps:
      cp ./continuous_detection2.launch <path_to_tiago_public_ws>/src/apriltag_ros/apriltag_ros/launch/
      cp -r ./apriltag_to_table_info <path_to_tiago_public_ws>/src/
      ```
-
+### Resolving dependencies
+This command will attempt to install any missing dependencies for packages in your workspace. It is neccesary when you install ApriTags packages for the fisrt time.
+```
+rosdep install --from-paths src --ignore-src -r -y
+```
 ### Launching Nodes
 - To launch nodes (you may need to run `catkin build` the first time):
   1. In each terminal, navigate to `tiago_public_ws` and source the setup file:
@@ -34,7 +38,7 @@ To set up, follow these steps:
      ```
   2. In Terminal 0, launch TIAGo Gazebo:
      ```bash
-     roslaunch tiago_gazebo tiago_gazebo.launch public_sim:=true world:=kitchen2
+     roslaunch tiago_gazebo tiago_gazebo.launch public_sim:=true world:=kitchen2 gzpose:="-x 1.40 -y -2.79 -z -0.003 -R 0.0 -P 0.0 -Y 0.0"
      ```
   3. In Terminal 1, launch AprilTag ROS:
      ```bash
