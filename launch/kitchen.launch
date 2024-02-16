@@ -15,7 +15,7 @@
     <arg name="world"      value="kitchen2"/>
     <arg name="gui"      value="$(arg gzclient)"/>
     <arg name="recording" value="$(arg recording)"/>
-    <arg name="gzpose" value="-x 0.0 -y 1.7 -z 0.0 -R 0.0 -P 0.0 -Y 0.0"/>
+    <arg name="gzpose" value="-x 0.5 -y 2.35 -z 0.0 -R 0.0 -P 0.0 -Y 1.57 "/>
   </include>
 
 
