@@ -27,11 +27,3 @@ To commit changes to GitHub, follow these steps:
     ```
 
 Replace `main` with the name of the branch you're pushing to if it's not the main branch.
-
-**Note:** You need to have a GitHub repository set up and your local repository needs to be linked to it. If you haven't done this, you can create a new repository on GitHub and link it using:
-
-    ```bash
-    git remote add origin https://github.com/username/repository.git
-    ```
-
-Replace `https://github.com/username/repository.git` with the URL of your GitHub repository.
