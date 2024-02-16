@@ -38,7 +38,7 @@ rosdep install --from-paths src --ignore-src -r -y
      ```
   2. In Terminal 0, launch TIAGo Gazebo:
      ```bash
-     roslaunch tiago_gazebo tiago_gazebo.launch public_sim:=true world:=kitchen2
+     roslaunch tiago_gazebo tiago_gazebo.launch public_sim:=true world:=kitchen2 gzpose:="-x 1.40 -y -2.79 -z -0.003 -R 0.0 -P 0.0 -Y 0.0"
      ```
   3. In Terminal 1, launch AprilTag ROS:
      ```bash
