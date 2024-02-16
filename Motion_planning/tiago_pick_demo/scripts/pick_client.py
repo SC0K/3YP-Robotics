@@ -24,8 +24,6 @@ import rospy
 import time
 import moveit_commander
 from moveit_commander import PlanningSceneInterface, MoveGroupCommander
-import sys
-import copy
 from tiago_pick_demo.msg import PickUpPoseAction, PickUpPoseGoal
 from geometry_msgs.msg import PoseStamped, Pose
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
@@ -56,7 +54,7 @@ class SphericalService(object):
 		self.pick_type = PickAruco()			# Create an object of the class PickAruco, initialize the object, creating two action clients: '/place_pose' and '/pickup_pose'. Set the publishers to the torso and head controller				
 		rospy.loginfo("Finished SphericalService constructor")
 		self.place_gui = rospy.Service("/place_gui", Empty, self.start_aruco_place)		# Reduntant. There is no operation for "place" in the pick_aruco function (see below) 
-		self.pick_gui = rospy.Service("/pick_gui", Empty, self.start_aruco_pick)
+		self.pick_gui = rospy.Service("/pick_gui", Empty, self.start_aruco_pick)		# pick, clean, and place.
 
 	def start_aruco_pick(self, req):
 		self.pick_type.pick_aruco("pick")		
@@ -106,6 +104,8 @@ class PickAruco(object):
 		return s[1:] if s.startswith("/") else s
 		
 	def pick_aruco(self, string_operation):
+
+#=============================================================== Getting the pose of the aruco marker ===============================================================
 		self.prepare_robot()		# Lower head.
 
 		rospy.sleep(2.0)
@@ -137,7 +137,7 @@ class PickAruco(object):
 				rospy.sleep(0.01)
 				ps.header.stamp = self.tfBuffer.get_latest_common_time("base_footprint", aruco_pose.header.frame_id)
 			pick_g = PickUpPoseGoal()		# The Goal message for the action server
-
+#==============================================================================================================================================================
 		if string_operation == "pick":
 
 			rospy.loginfo("Setting cube pose based on ArUco detection")
@@ -254,7 +254,6 @@ class PickAruco(object):
 			start = rospy.Time.now()
 			group_arm_torso.execute(plan, wait=True)
 			rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
-
 			moveit_commander.roscpp_shutdown()
 
 if __name__ == '__main__':

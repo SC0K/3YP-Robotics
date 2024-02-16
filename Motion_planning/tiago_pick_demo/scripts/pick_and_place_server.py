@@ -36,6 +36,10 @@ from copy import deepcopy
 from random import shuffle
 import copy
 
+import tf2_ros
+import tf2_geometry_msgs
+from apriltag_ros.msg import AprilTagDetectionArray
+
 moveit_error_dict = {}
 for name in MoveItErrorCodes.__dict__.keys():
 	if not name[:1] == '_':
@@ -178,6 +182,44 @@ class PickAndPlaceServer(object):
 
 		rospy.loginfo("'" + object_name + "'' is in scene!")
 
+	def process_info(self, msg):
+		# tag id: [table_height, table_width, table_depth]
+		id_to_info = {0:[.6, 3, .8], 1:[.6, 1, 1]}
+		self.table_detected = False
+		
+		for detection in msg.detections:
+			tag_id = detection.id[0]
+			if (tag_id == 1): # to change, to be sent by task planning
+				#rospy.loginfo(f"apriltag id: {tag_id}")
+				self.tag_info = id_to_info[tag_id]
+				#rospy.loginfo(f"height: {tag_info[0]}")
+				#rospy.loginfo(f"width: {tag_info[1]}")
+				#rospy.loginfo(f"depth: {tag_info[2]}")
+				# to add info on height, width, depth
+				
+				tag_pose_relative_to_camera = detection.pose.pose.pose
+				# transform to PoseStamped
+				tag_pose_relative_to_camera_stamped = PoseStamped()
+				tag_pose_relative_to_camera_stamped.header.stamp = rospy.Time.now()
+				tag_pose_relative_to_camera_stamped.header.frame_id = "xtion_rgb_optical_frame"
+				tag_pose_relative_to_camera_stamped.pose = tag_pose_relative_to_camera
+
+				#rospy.loginfo(f"Pose relative to camera: {tag_pose_relative_to_camera}") # debugging
+				
+				try:
+					transform = self.tf_buffer.lookup_transform("base_footprint", "xtion_rgb_optical_frame", rospy.Time(0), rospy.Duration(1.0))
+					rospy.loginfo(f"transform: {transform}")
+				except Exception as e:
+					rospy.loginfo("failed to lookup transform")
+					rospy.loginfo(e)
+
+				self.tag_pose_relative_to_base_stamped = tf2_geometry_msgs.do_transform_pose(tag_pose_relative_to_camera_stamped, transform)
+				tag_pose_relative_to_base = self.tag_pose_relative_to_base_stamped.pose
+				self.table_detected = True
+
+				#rospy.loginfo(f"transformed pose: {tag_pose_relative_to_base}")
+				
+
 	def grasp_object(self, object_pose):
 		rospy.loginfo("Removing any previous 'part' object")
 		self.scene.remove_attached_object("arm_tool_link")
@@ -197,11 +239,19 @@ class PickAndPlaceServer(object):
 		rospy.loginfo("Second%s", object_pose.pose)
 		table_pose = copy.deepcopy(object_pose)
 		###################################################### Modify this table size ########################################
+		rospy.init_node("apriltag_detection_lister", anonymous=True)
+		self.tf_buffer = tf2_ros.Buffer()
+		self.tf_listener = tf2_ros.TransformListener(tf_buffer)
+		rospy.Subscriber("/tag_detections", AprilTagDetectionArray,self.process_info)
+
+		while (not self.table_detected):
+			rospy.sleep(1.0)
+
 		#define a virtual table below the object
 		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.015
-		table_width  = 1.0
-		table_depth  = 1.2
-		table_pose.pose.position.x = 1.1
+		table_width  = self.tag_info[1]
+		table_depth  = self.tag_info[2]
+		table_pose.pose.position.x = self.tag_pose_relative_to_base_stamped.pose.position.x
 		table_pose.pose.position.z = table_height/2
 
 		self.scene.add_box("table", table_pose, (table_depth, table_width, table_height))		# What does this do? ############
@@ -228,75 +278,6 @@ class PickAndPlaceServer(object):
 
 		return result.error_code.val	# Return the error code
 
-	def clean_table(self, object_pose):
-		rospy.loginfo("Clearing table")
-		# For table Cleaning
-		object_pose.pose.position.z += 0.016
-
-		rospy.loginfo("Second%s", object_pose.pose)
-		table_pose = copy.deepcopy(object_pose)
-		#define the table parameters
-		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.015
-		table_width  = 1.0
-		table_depth  = 1.2
-		table_pose.pose.position.x = 1.12
-		table_pose.pose.position.z = table_height/2
-
-		goal_pose = PoseStamped()
-		goal_pose.header.frame_id = "base_footprint"
-		goal_pose.pose.position.x = table_pose.pose.position.x
-		goal_pose.pose.position.y = table_pose.pose.position.y
-		goal_pose.pose.position.z = table_pose.pose.position.z + 0.5
-		goal_pose.pose.orientation.w = 1.0		# Quaternion
-
-		# Starting MoveIt! commander
-		moveit_commander.roscpp_initialize(sys.argv)
-		rospy.init_node('plan_arm_torso_ik', anonymous=True)
-		# Select group of joints
-		group_arm_torso = MoveGroupCommander("arm_torso")
-
-		# Choose your preferred planner
-		group_arm_torso.set_planner_id("SBLkConfigDefault")
-
-		# Set the reference frame
-		group_arm_torso.set_pose_reference_frame("base_footprint")
-
-		# Set the target pose
-		group_arm_torso.set_pose_target(goal_pose)
-
-		# Log info
-		rospy.loginfo("Planning to move %s to a target pose expressed in %s" % 
-					(group_arm_torso.get_end_effector_link(), group_arm_torso.get_planning_frame()))
-
-		# Set the start state to the current state
-		group_arm_torso.set_start_state_to_current_state()
-
-		# Set the max velocity scaling factor
-		group_arm_torso.set_max_velocity_scaling_factor(1.0)
-
-		# Plan
-		#group_arm_torso.set_num_planning_attempts(3)
-		group_arm_torso.set_planning_time(5.0)
-		plan = group_arm_torso.plan()
-
-		# Check if plan was found
-		if not plan:
-			raise RuntimeError("No plan found")
-
-		# Log info
-		rospy.loginfo("Plan found in %s seconds" % plan.planning_time)
-
-		rospy.loginfo("Done cleaning table.")
-
-		# Get the start time
-		start = rospy.Time.now()
-
-		# Execute the plan
-		group_arm_torso.go()
-
-		# Log the motion duration
-		rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
-		moveit_commander.roscpp_shutdown()
 		
 
 	def place_object(self, object_pose):
