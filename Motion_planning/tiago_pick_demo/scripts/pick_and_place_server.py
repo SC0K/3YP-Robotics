@@ -140,36 +140,39 @@ class PickAndPlaceServer(object):
 		self.place_as = SimpleActionServer(
 			'/place_pose', PickUpPoseAction,
 			execute_cb=self.place_cb, auto_start=False)
-		self.place_as.start()
+		self.place_as.start()	
 #############################################################################
-	
-	def set_table_cb(self, goal):		
+	def set_table_cb(self, goal):      
 		"""
 		:type goal: PickUpPoseGoal
 		"""
-		self.table_pose = copy.deepcopy(goal.object_pose)	# copy goal from the client
-		error_code = 1
-		p_res = PickUpPoseResult()
-		p_res.error_code = error_code
-		if error_code != 1:
-			self.pick_as.set_aborted(p_res)
+		# Only accept the new goal if it's not None
+		if goal is not None:
+			self.table_pose = copy.deepcopy(goal.object_pose)    # copy goal from the client
+			error_code = 1
+			p_res = PickUpPoseResult()
+			p_res.error_code = error_code
+			if error_code != 1:
+				self.pick_as.set_aborted(p_res)
+			else:
+				self.pick_as.set_succeeded(p_res)
+			rospy.loginfo('\033[92m' + "Table pose set successfully" + '\033[0m')
+			rospy.loginfo("Table pose: %s", self.table_pose)
 		else:
-			self.pick_as.set_succeeded(p_res)
+			rospy.logwarn('\033[91m' + "Received goal is None" + '\033[0m')
 
 
 	def pick_cb(self, goal):
 		"""
 		:type goal: PickUpPoseGoal
 		"""
-		error_code = self.grasp_object(goal.object_pose, self.table_pose)
+		error_code = self.grasp_object(goal.object_pose)
 		p_res = PickUpPoseResult()
 		p_res.error_code = error_code
 		if error_code != 1:
 			self.pick_as.set_aborted(p_res)
 		else:
 			self.pick_as.set_succeeded(p_res)	# Acrion server sends a result to the client
-		
-		#self.clean_table(goal.object_pose)
 
 	def place_cb(self, goal):
 		"""
@@ -203,8 +206,7 @@ class PickAndPlaceServer(object):
 
 		rospy.loginfo("'" + object_name + "'' is in scene!")
 
-				
-	def grasp_object(self, object_pose,table_pose):
+	def grasp_object(self, object_pose):
 		rospy.loginfo("Removing any previous 'part' object")
 		self.scene.remove_attached_object("arm_tool_link")
 		self.scene.remove_world_object("part")
@@ -221,17 +223,16 @@ class PickAndPlaceServer(object):
 		self.scene.add_box("part", object_pose, (self.object_depth, self.object_width, self.object_height))
 
 		rospy.loginfo("Second%s", object_pose.pose)
-		rospy.loginfo("Table: %s", table_pose.pose)
-		###################################################### Modify this table size ########################################
+		set_table_pose = copy.deepcopy(object_pose)
 
 		#define a virtual table below the object
 		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.015
-		table_width  = self.table_pose.orientation.y
-		table_depth  = self.table_pose.orientation.x
-		table_pose.pose.position.x = self.table_pose.pose.position.x
-		table_pose.pose.position.z = table_height/2
+		table_width  = self.table_pose.pose.orientation.y
+		table_depth  = self.table_pose.pose.orientation.x
+		set_table_pose.pose.position.x = self.table_pose.pose.position.x
+		set_table_pose.pose.position.z = table_height/2
 
-		self.scene.add_box("table", table_pose, (table_depth, table_width, table_height))		# What does this do? ############
+		self.scene.add_box("table", set_table_pose, (table_depth, table_width, table_height))		# What does this do? ############
 
 		# # We need to wait for the object part to appear
 		self.wait_for_planning_scene_object()
