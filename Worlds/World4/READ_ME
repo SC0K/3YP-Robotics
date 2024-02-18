@@ -1,0 +1,19 @@
+copy contents of Models folder to /tiago_public_ws/src/pal_gazebo_worlds/models
+copy contents of World folder to /tiago_public_ws/src/pal_gazebo_worlds/worlds
+
+copy launch file to which simulation you would like to launch
+
+e.g.
+
+copy to /tiago_public_ws/src/tiago_tutorials/tiago_pick_demo/launch
+
+					      /.............../launch
+				
+				
+run in terminal as normal with command roslaunch tiago_pick_demo kitchen4.launch
+						   ...............   
+						   
+						   
+
+
+
