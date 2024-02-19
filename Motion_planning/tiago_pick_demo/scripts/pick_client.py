@@ -24,11 +24,11 @@ import rospy
 import time
 import moveit_commander
 from moveit_commander import PlanningSceneInterface, MoveGroupCommander
-from tiago_pick_demo.msg import PickUpPoseAction, PickUpPoseGoal
+from tiago_pick_demo.msg import PickUpPoseAction, PickUpPoseGoal, CleaningAction, CleaningActionResult
 from geometry_msgs.msg import PoseStamped, Pose
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from play_motion_msgs.msg import PlayMotionAction, PlayMotionGoal
-from actionlib import SimpleActionClient
+from actionlib import SimpleActionClient, SimpleActionServer
 
 import tf2_ros
 from tf2_geometry_msgs import do_transform_pose
@@ -58,12 +58,28 @@ class SphericalService(object):
 		self.pick_type = PickAruco()			# Create an object of the class PickAruco, initialize the object, creating two action clients: '/place_pose' and '/pickup_pose'. Set the publishers to the torso and head controller				
 		rospy.loginfo("Finished SphericalService constructor")
 		self.place_gui = rospy.Service("/place_gui", Empty, self.start_aruco_place)		# Reduntant. There is no operation for "place" in the pick_aruco function (see below) 
-		self.pick_gui = rospy.Service("/pick_gui", Empty, self.start_aruco_pick)		# pick, clean, and place.
+		# self.pick_gui = rospy.Service("/pick_gui", Empty, self.start_aruco_pick)		# pick, clean, and place.
 
-	def start_aruco_pick(self, req):
-		self.pick_type.pick_aruco("pick")		
+		self.clean_as = SimpleActionServer('/cleaning_action', CleaningAction, execute_cb=self.start_aruco_pick, auto_start=False)
+		self.clean_as.start()
+
+	# def start_aruco_pick(self, req):
+	# 	self.pick_type.pick_aruco("pick")		   ## Old one
+	# 	return {}
+#================================================================================================================================================================
+	def start_aruco_pick(self, goal):
+		# Create a result
+		result = CleaningActionResult()
+		result.result.error_code = 1 if goal.task.data == "pick" else 0
+
+		if goal.task.data == "pick":
+			self.pick_type.pick_aruco("pick")
+			self.clean_as.set_succeeded(result.result)    
+		else:
+			self.clean_as.set_aborted(result.result)
+
 		return {}
-
+#================================================================================================================================================================
 	def start_aruco_place(self, req):
 		self.pick_type.pick_aruco("place") 		# Redundant. There is no operation for "place" in the pick_aruco function
 		return {}
@@ -125,6 +141,8 @@ class PickAruco(object):
 		table_info_goal.object_pose.pose.orientation.y = detector.tag_info[1]
 		table_info_goal.object_pose.pose.orientation.x = detector.tag_info[2]
 		table_info_goal.object_pose.pose.position.x = detector.tag_pose_relative_to_base_stamped.pose.position.x
+		table_info_goal.object_pose.pose.position.y = detector.tag_pose_relative_to_base_stamped.pose.position.y
+		table_info_goal.object_pose.pose.position.z = detector.tag_pose_relative_to_base_stamped.pose.position.z
 
 		table_info_goal.object_pose.header.frame_id = 'base_footprint'
 		table_info_goal.object_pose.pose.orientation.w = 1.0
@@ -190,7 +208,7 @@ class PickAruco(object):
 #The following code is for placing the object back to its original position.
 #================================================================
 			
-			self.clean_table(pick_g.object_pose,table_info_goal.object_pose)		# Clean the table
+			self.clean_table(table_info_goal.object_pose)		# Clean the table
 			rospy.loginfo("Cleaning Done")
 
 			# # Raise arm
@@ -238,7 +256,7 @@ class PickAruco(object):
 
 		rospy.loginfo("Robot prepared to place")
 
-	def clean_table(self, object_pose, table_pose):
+	def clean_table(self, table_pose):
 			rospy.loginfo('\033[92m' + "Cleaning table" + '\033[0m')
 			moveit_commander.roscpp_initialize([])
 			group_arm_torso = MoveGroupCommander("arm_torso")
@@ -248,23 +266,29 @@ class PickAruco(object):
 			group_arm_torso.set_planning_time(10.0)  # Increase planning time
 
 			sponge_width = 0.1
-			table_width = table_pose.pose.orientation.y-0.34
-			table_depth = table_pose.pose.orientation.x-0.1
-			table_center_y = table_pose.pose.position.y
-			table_center_x = table_pose.pose.position.x
-			table_center_z = object_pose.pose.position.z+0.05
-			if table_width > 0.76:
-				table_width = 0.76
-			if table_depth > 0.4:
-				table_depth = 0.4
-			if table_center_x > 0.7:
-				table_center_x = 0.7
+			# table_width = table_pose.pose.orientation.y-0.34
+			# table_depth = table_pose.pose.orientation.x-0.1
+			# table_center_y = table_pose.pose.position.y
+			# table_center_x = table_pose.pose.position.x
+			# table_center_z = table_pose.pose.position.z + 0.3 #object_pose.pose.position.z+0.05
+			# if table_width > 0.5:
+			# 	table_width = 0.5
+			# if table_depth > 0.3:
+			# 	table_depth = 0.3
+			# if table_center_x > 0.55:
+			# 	table_center_x = 0.55
+			
+			table_width = 0.6
+			table_depth = 0.4
+			table_center_y = 0.0
+			table_center_x = 0.6
+			table_center_z = table_pose.pose.position.z + 0.2
 			step_num = math.floor(table_width/sponge_width+1)
 			
 			waypoints = []
 			waypoints_y = np.linspace(table_center_y-table_width/2+sponge_width/2, table_center_y+table_width/2-sponge_width/2, step_num)
 			waypoints_x = [table_center_x-table_depth/2+sponge_width/2, table_center_x+table_depth/2-sponge_width/2]
-			waypoints_z_angle = np.linspace(-60, 60, step_num)
+			waypoints_z_angle = np.linspace(-45, 45, step_num)
 
 			for i in range(step_num):
 				for x in waypoints_x:
@@ -301,11 +325,11 @@ class AprilTagDetector:
 
 	def process_info(self, msg):
 		# tag id: [table_height, table_width, table_depth]
-		id_to_info = {0: [.6, 3, .8], 1: [.6, 1, 1]}
+		id_to_info = {0: [.6, 1.1, .8], 1: [.6, 1, 1]}
 
 		for detection in msg.detections:
 			tag_id = detection.id[0]	
-			if tag_id == 1:  # to change, to be sent by task planning
+			if tag_id == 0:  # to change, to be sent by task planning
 				self.table_apriltag_s.unregister()
 				# rospy.loginfo(f"apriltag id: {tag_id}")
 				self.tag_info = id_to_info[tag_id]

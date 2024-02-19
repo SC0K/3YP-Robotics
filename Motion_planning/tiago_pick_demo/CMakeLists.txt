@@ -22,6 +22,7 @@ generate_dynamic_reconfigure_options(
 add_action_files(
   FILES
   PickUpPose.action
+  Cleaning.action
 )
 
 generate_messages(

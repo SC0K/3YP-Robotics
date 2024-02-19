@@ -226,10 +226,12 @@ class PickAndPlaceServer(object):
 		set_table_pose = copy.deepcopy(object_pose)
 
 		#define a virtual table below the object
-		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.015
+		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 
+		table_height = self.table_pose.pose.position.z
 		table_width  = self.table_pose.pose.orientation.y
 		table_depth  = self.table_pose.pose.orientation.x
 		set_table_pose.pose.position.x = self.table_pose.pose.position.x
+		set_table_pose.pose.position.y = self.table_pose.pose.position.y
 		set_table_pose.pose.position.z = table_height/2
 
 		self.scene.add_box("table", set_table_pose, (table_depth, table_width, table_height))		# What does this do? ############

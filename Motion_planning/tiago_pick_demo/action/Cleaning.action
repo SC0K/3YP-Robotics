@@ -1,0 +1,8 @@
+#goal definition
+std_msgs/String task
+---
+#result definition
+# Comes from moveit_msgs/MoveItErrorCodes
+int32 error_code
+---
+#feedback
