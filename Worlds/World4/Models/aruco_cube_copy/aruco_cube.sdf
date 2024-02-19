@@ -29,7 +29,7 @@
 
 
       <inertial>
-        <mass>0.05</mass>
+        <mass>0.005</mass>
         <inertia>
           <ixx>0.000052083</ixx>
           <ixy>0.0</ixy>
