@@ -28,16 +28,37 @@ from tiago_pick_demo.msg import CleaningAction, CleaningGoal
         
 
 
+class Pick(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=['success', 'failure'])
+        self.client = actionlib.SimpleActionClient('picking_action', CleaningAction)
+        self.client.wait_for_server()
+
+        
+    def execute(self, userdata):
+        rospy.loginfo('Starting picking')
+        goal = CleaningGoal()  
+        goal.task.data = "pick"
+        self.client.send_goal(goal)
+        self.client.wait_for_result()
+        if self.client.get_state() == actionlib.GoalStatus.SUCCEEDED:
+            rospy.loginfo('Picking successful')
+            return 'success'
+        else:
+            rospy.loginfo('Picking unsuccessful')
+            return 'failure'
+        
 class CleanSurface(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['success', 'failure'])
         self.client = actionlib.SimpleActionClient('cleaning_action', CleaningAction)
         self.client.wait_for_server()
 
+        
     def execute(self, userdata):
         rospy.loginfo('Starting cleaning')
         goal = CleaningGoal()  
-        goal.task.data = "pick"
+        goal.task.data = "clean"
         self.client.send_goal(goal)
         self.client.wait_for_result()
         if self.client.get_state() == actionlib.GoalStatus.SUCCEEDED:
@@ -46,8 +67,27 @@ class CleanSurface(smach.State):
         else:
             rospy.loginfo('Surface cleaning unsuccessful')
             return 'failure'
-        
 
+class Place(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=['success', 'failure'])
+        self.client = actionlib.SimpleActionClient('placing_action', CleaningAction)
+        self.client.wait_for_server()
+
+        
+    def execute(self, userdata):
+        rospy.loginfo('Starting placing')
+        goal = CleaningGoal()  
+        goal.task.data = "place"
+        self.client.send_goal(goal)
+        self.client.wait_for_result()
+        if self.client.get_state() == actionlib.GoalStatus.SUCCEEDED:
+            rospy.loginfo('Placing successful')
+            return 'success'
+        else:
+            rospy.loginfo('Place unsuccessful')
+            return 'failure'
+        
 # class ReturnToBase(smach.State):
 #     def __init__(self, base_location):
 #         smach.State.__init__(self, outcomes['success', 'failure'])
@@ -83,6 +123,12 @@ def main():
         # navigate and clean first surface
         # smach.StateMachine.add('NAVIGATETOSURFACE1', NavigateToSurface(target_location=surface_1),
         #                        transitions = {'success':'CLEANSURFACE1', 'failure':'RETURNTOBASE'})
+        smach.StateMachine.add('PICK', Pick(),
+                               transitions = {'success':'PLACE', 'failure':'task_failed'})
+        
+        smach.StateMachine.add('PLACE', Place(),
+                               transitions = {'success':'CLEANSURFACE1', 'failure':'task_failed'})
+
         
         smach.StateMachine.add('CLEANSURFACE1', CleanSurface(),
                                transitions = {'success':'task_completed', 'failure':'task_failed'})

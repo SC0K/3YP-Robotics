@@ -1,25 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2016 PAL Robotics SL. All Rights Reserved
-#
-# Permission to use, copy, modify, and/or distribute this software for
-# any purpose with or without fee is hereby granted, provided that the
-# above copyright notice and this permission notice appear in all
-# copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-#
 # Author:
-#   * Sam Pfeiffer
-#   * Job van Dieten
-#   * Jordi Pages
+#   * Sitong Chen
 import sys
 import rospy
 from spherical_grasps_server import SphericalGrasps
@@ -136,12 +119,58 @@ class PickAndPlaceServer(object):
 			execute_cb=self.pick_cb, auto_start=False)	# A callback function to execute when the action is called. In this case, the callback is self.pick_cb.
 		self.pick_as.start()		# This starts the action server and allows it to begin accepting goals.
 
+		self.clean_as = SimpleActionServer(
+			'/clean_pose', PickUpPoseAction,
+			execute_cb=self.clean_cb, auto_start=False)	# A callback function to execute when the action is called. In this case, the callback is self.pick_cb.
+		self.clean_as.start()
 
 		self.place_as = SimpleActionServer(
 			'/place_pose', PickUpPoseAction,
 			execute_cb=self.place_cb, auto_start=False)
 		self.place_as.start()	
 #############################################################################
+	def clean_cb(self, goal):
+
+		if goal is not None:
+			self.table_pose = copy.deepcopy(goal.object_pose)    # copy goal from the client
+			self.table_pose = copy.deepcopy(goal.object_pose)
+			rospy.loginfo("Removing any previous 'part' object")
+			self.scene.remove_attached_object("arm_tool_link")
+			self.scene.remove_world_object("part")
+			self.scene.remove_world_object("table")
+			rospy.loginfo("Clearing octomap")
+			set_table_pose = copy.deepcopy(self.object_pose)
+
+			#define a virtual table below the object
+			# table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
+			table_height = self.table_pose.pose.position.z + 0.015
+			table_height = self.table_pose.pose.position.z
+			table_width  = self.table_pose.pose.orientation.y
+			table_depth  = self.table_pose.pose.orientation.x
+			set_table_pose.pose.position.x = self.table_pose.pose.position.x
+			set_table_pose.pose.position.y = self.table_pose.pose.position.y
+			set_table_pose.pose.position.z = table_height/2
+			rospy.loginfo("Table pose: %s", set_table_pose)
+
+			self.scene.add_box("table", set_table_pose, (table_depth, table_width, table_height))		# What does this do? ############
+
+			# # We need to wait for the object part to appear
+			self.wait_for_planning_scene_object("table")
+			error_code = 1
+			p_res = PickUpPoseResult()
+			rospy.loginfo("result: %s", p_res)
+			p_res.error_code = error_code
+			if error_code != 1:
+				self.clean_as.set_aborted(p_res)
+			else:
+				self.clean_as.set_succeeded(p_res)
+			rospy.loginfo('\033[92m' + "Table pose set successfully" + '\033[0m')
+			rospy.loginfo("Table pose: %s", self.table_pose)
+		else:
+			rospy.logwarn('\033[91m' + "Received goal is None" + '\033[0m')
+
+	# Return the error code
+	
 	def set_table_cb(self, goal):      
 		"""
 		:type goal: PickUpPoseGoal
@@ -153,10 +182,10 @@ class PickAndPlaceServer(object):
 			p_res = PickUpPoseResult()
 			p_res.error_code = error_code
 			if error_code != 1:
-				self.pick_as.set_aborted(p_res)
+				self.set_table_as.set_aborted(p_res)
 			else:
-				self.pick_as.set_succeeded(p_res)
-			rospy.loginfo('\033[92m' + "Table pose set successfully" + '\033[0m')
+				self.set_table_as.set_succeeded(p_res)
+			rospy.loginfo('\033[92m' + "Table pose set successfully by callback" + '\033[0m')
 			rospy.loginfo("Table pose: %s", self.table_pose)
 		else:
 			rospy.logwarn('\033[91m' + "Received goal is None" + '\033[0m')
@@ -167,6 +196,7 @@ class PickAndPlaceServer(object):
 		:type goal: PickUpPoseGoal
 		"""
 		error_code = self.grasp_object(goal.object_pose)
+		self.object_pose = copy.deepcopy(goal.object_pose)
 		p_res = PickUpPoseResult()
 		p_res.error_code = error_code
 		if error_code != 1:
@@ -226,7 +256,7 @@ class PickAndPlaceServer(object):
 		set_table_pose = copy.deepcopy(object_pose)
 
 		#define a virtual table below the object
-		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 
+		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
 		table_height = self.table_pose.pose.position.z
 		table_width  = self.table_pose.pose.orientation.y
 		table_depth  = self.table_pose.pose.orientation.x
