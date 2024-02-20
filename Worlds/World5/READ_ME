@@ -14,6 +14,13 @@ run in terminal as normal with command roslaunch tiago_pick_demo kitchen5table.l
 						   ............... .............
 						   
 						   
+In order to run the tiago_navigation tutorial in kitchen5:
+
+copy Maps/kitchen5 to /.pal/tiago_maps/configurations
+
+copy tiago_navigation2.launch to /tiago_public_ws/src/tiago_simulations/tiago_2dnav_gazebo/launch
+
+run roslaunch tiago_2dnav_gazebo tiago_navigation2.launch public_sim:=true lost:=true in terminal
 
 
 
