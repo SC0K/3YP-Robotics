@@ -134,17 +134,18 @@ class PickAndPlaceServer(object):
 		if goal is not None:
 			self.table_pose = copy.deepcopy(goal.object_pose)    # copy goal from the client
 			self.table_pose = copy.deepcopy(goal.object_pose)
-			rospy.loginfo("Removing any previous 'part' object")
-			self.scene.remove_attached_object("arm_tool_link")
-			self.scene.remove_world_object("part")
+			# rospy.loginfo("Removing any previous 'part' object")
+			# self.scene.remove_attached_object("arm_tool_link")
+			# self.scene.remove_world_object("part")
 			self.scene.remove_world_object("table")
 			rospy.loginfo("Clearing octomap")
+			# self.clear_octomap_srv.call(EmptyRequest())
+			# rospy.sleep(2.0)  # Removing is fast
 			set_table_pose = copy.deepcopy(self.object_pose)
 
 			#define a virtual table below the object
 			# table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
-			table_height = self.table_pose.pose.position.z + 0.015
-			table_height = self.table_pose.pose.position.z
+			table_height = self.table_pose.pose.position.z 
 			table_width  = self.table_pose.pose.orientation.y
 			table_depth  = self.table_pose.pose.orientation.x
 			set_table_pose.pose.position.x = self.table_pose.pose.position.x
@@ -256,8 +257,8 @@ class PickAndPlaceServer(object):
 		set_table_pose = copy.deepcopy(object_pose)
 
 		#define a virtual table below the object
-		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
-		table_height = self.table_pose.pose.position.z
+		# table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
+		table_height = self.table_pose.pose.position.z+0.025
 		table_width  = self.table_pose.pose.orientation.y
 		table_depth  = self.table_pose.pose.orientation.x
 		set_table_pose.pose.position.x = self.table_pose.pose.position.x

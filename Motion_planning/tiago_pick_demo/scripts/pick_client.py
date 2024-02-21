@@ -134,7 +134,7 @@ class PickAruco(object):
 		return result
 
 	def clean_table_master(self, string_operation):
-		self.prepare_robot()
+		self.prepare_clean()
 		if string_operation == "clean":
 			#======================================================================== Getting The table pose from Apriltag ==================================================
 			
@@ -156,11 +156,8 @@ class PickAruco(object):
 			rospy.loginfo('\033[92m' + "Done setting table!" + '\033[0m')
 			self.clean_ac.send_goal_and_wait(table_info_goal)			# Send the goal to the action server (/pickup_pose) and wait for the result
 			rospy.loginfo("Done setting cleaning scene!")
-			self.clean_table(table_info_goal.object_pose)		# Clean the table
+			result = self.clean_table(table_info_goal.object_pose)		# Clean the table
 			rospy.loginfo("Cleaning Done")
-
-			result = CleaningActionResult()
-			result.result.error_code = 1
 			return result
 
 
@@ -293,9 +290,9 @@ class PickAruco(object):
 			group_arm_torso.set_planner_id("LIN")
 			group_arm_torso.set_pose_reference_frame("base_footprint")
 			group_arm_torso.set_max_velocity_scaling_factor(1.0)
-			group_arm_torso.set_planning_time(10.0)  # Increase planning time
+			group_arm_torso.set_planning_time(20.0)  # Increase planning time
 
-			sponge_width = 0.1
+			sponge_width = 0.05
 			table_width = table_pose.pose.orientation.y-0.34
 			table_depth = table_pose.pose.orientation.x-0.1
 			table_center_y = table_pose.pose.position.y
@@ -308,17 +305,18 @@ class PickAruco(object):
 			if table_center_x > 0.6:
 				table_center_x = 0.6
 			
-			table_width = 0.6
-			table_depth = 0.4
+			## Dont change these values for now
+			table_width = 0.5
+			table_depth = 0.3
 			table_center_y = 0.0
-			table_center_x = 0.6
-			table_center_z = table_pose.pose.position.z + 0.2
+			table_center_x = 0.7
+			table_center_z = table_pose.pose.position.z + 0.15
 			step_num = math.floor(table_width/sponge_width+1)
 			
 			waypoints = []
 			waypoints_y = np.linspace(table_center_y-table_width/2+sponge_width/2, table_center_y+table_width/2-sponge_width/2, step_num)
 			waypoints_x = [table_center_x-table_depth/2+sponge_width/2, table_center_x+table_depth/2-sponge_width/2]
-			waypoints_z_angle = np.linspace(-45, 45, step_num)
+			waypoints_z_angle = np.linspace(-50, 50, step_num)
 
 			for i in range(step_num):
 				for x in waypoints_x:
@@ -335,17 +333,76 @@ class PickAruco(object):
 
 			(plan, fraction) = group_arm_torso.compute_cartesian_path(waypoints, 0.01, 0.0, path_constraints=None, avoid_collisions=True)  # Removed orientation_tolerance
 
+			result = CleaningActionResult()
 			if fraction == 1.0:
-				rospy.loginfo("Plan found")
+				rospy.loginfo('\033[92m' + "Plan found"+ '\033[0m')
 			else:
 				rospy.loginfo("Planning failed")
+				result.result.error_code = 0
+				return result
 
 			start = rospy.Time.now()
 			group_arm_torso.execute(plan, wait=True)
 			rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
 			moveit_commander.roscpp_shutdown()
+			
+			result.result.error_code = 1
+			return result
 
+	def prepare_clean(self):
+		# rospy.loginfo('\033[92m' + "Prepare Cleaning" + '\033[0m')
+		moveit_commander.roscpp_initialize([])
+		# if len(args) < 7:
+		#     rospy.loginfo("Usage: plan_arm_torso_ik  x y z  r p y")
+		#     rospy.loginfo("where the list of arguments specify the target pose of /arm_tool_link expressed in /base_footprint")
+		#     return
+
+		# Default values
+		args = [0.52, -0.4, 1.15, -1.57, 0.0, 0.0] 
 		
+
+		goal_pose = PoseStamped()
+		goal_pose.header.frame_id = "base_footprint"
+		goal_pose.pose.position.x = float(args[0])
+		goal_pose.pose.position.y = float(args[1])
+		goal_pose.pose.position.z = float(args[2])
+		q = quaternion_from_euler(float(args[3]), float(args[4]), float(args[5]))
+		goal_pose.pose.orientation.x = q[0]
+		goal_pose.pose.orientation.y = q[1]
+		goal_pose.pose.orientation.z = q[2]
+		goal_pose.pose.orientation.w = q[3]
+
+		group_arm_torso = MoveGroupCommander("arm_torso")
+		group_arm_torso.set_planner_id("LIN")
+		group_arm_torso.set_pose_reference_frame("base_footprint")
+		group_arm_torso.set_pose_target(goal_pose)
+
+		rospy.loginfo("Planning to move %s to a target pose expressed in %s" % 
+					(group_arm_torso.get_end_effector_link(), group_arm_torso.get_planning_frame()))
+
+		group_arm_torso.set_start_state_to_current_state()
+		group_arm_torso.set_max_velocity_scaling_factor(1.0)
+
+		group_arm_torso.set_planning_time(10.0)
+		success, plan, planning_time, _ = group_arm_torso.plan()
+
+		if success:
+			rospy.loginfo("Plan found in %s seconds" % planning_time)
+			rospy.loginfo('\033[92m' + "Prepare cleaning Success!!!!!!!!!" + '\033[0m')
+		else:
+			rospy.loginfo("Planning failed")
+
+
+		start = rospy.Time.now()
+		# group_arm_torso.go()
+		group_arm_torso.execute(plan, wait=True)
+		rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
+
+		moveit_commander.roscpp_shutdown()
+
+		self.lower_head()
+
+				
 		
 class AprilTagDetector:
 	def __init__(self):
@@ -357,7 +414,7 @@ class AprilTagDetector:
 
 	def process_info(self, msg):
 		# tag id: [table_height, table_width, table_depth]
-		id_to_info = {0: [.6, 1.1, .8], 1: [.6, 1, 1]}
+		id_to_info = {0: [0.6, 1.2, 0.6], 1: [.6, 1, 1]}
 
 		for detection in msg.detections:
 			tag_id = detection.id[0]	

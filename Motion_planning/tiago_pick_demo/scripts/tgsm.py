@@ -124,14 +124,14 @@ def main():
         # smach.StateMachine.add('NAVIGATETOSURFACE1', NavigateToSurface(target_location=surface_1),
         #                        transitions = {'success':'CLEANSURFACE1', 'failure':'RETURNTOBASE'})
         smach.StateMachine.add('PICK', Pick(),
-                               transitions = {'success':'PLACE', 'failure':'task_failed'})
+                               transitions = {'success':'CLEANSURFACE1', 'failure':'task_failed'})
         
         smach.StateMachine.add('PLACE', Place(),
-                               transitions = {'success':'CLEANSURFACE1', 'failure':'task_failed'})
+                               transitions = {'success':'task_completed', 'failure':'task_failed'})
 
         
         smach.StateMachine.add('CLEANSURFACE1', CleanSurface(),
-                               transitions = {'success':'task_completed', 'failure':'task_failed'})
+                               transitions = {'success':'PLACE', 'failure':'task_failed'})
         
         # # navigate and clean second surface
 
