@@ -8,7 +8,7 @@ from moveit_commander import MoveGroupCommander
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler
 
-def move(args):
+def move():
     moveit_commander.roscpp_initialize(sys.argv)
     rospy.init_node('plan_arm_torso_ik', anonymous=True)
 
@@ -18,12 +18,8 @@ def move(args):
     #     return
 
     # Default values
-    default_values = [0.4, 0, 0.26, -0.011, 1.57, 0.037]
+    args = [0.52, -0.42, 1.25, -1.57, 0.0, 0.0] 
     
-    if args is None or len(args) < 7:
-        rospy.loginfo("Using default values for the target pose of /arm_tool_link expressed in /base_footprint")
-        args = default_values
-
     goal_pose = PoseStamped()
     goal_pose.header.frame_id = "base_footprint"
     goal_pose.pose.position.x = float(args[0])
@@ -36,7 +32,7 @@ def move(args):
     goal_pose.pose.orientation.w = q[3]
 
     group_arm_torso = MoveGroupCommander("arm_torso")
-    group_arm_torso.set_planner_id("SBLkConfigDefault")
+    group_arm_torso.set_planner_id("LIN")
     group_arm_torso.set_pose_reference_frame("base_footprint")
     group_arm_torso.set_pose_target(goal_pose)
 
@@ -62,4 +58,4 @@ def move(args):
     moveit_commander.roscpp_shutdown()
 
 if __name__ == '__main__':
-    move(sys.argv[1:])
+    move()

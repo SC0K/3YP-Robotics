@@ -1,25 +1,8 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2016 PAL Robotics SL. All Rights Reserved
-#
-# Permission to use, copy, modify, and/or distribute this software for
-# any purpose with or without fee is hereby granted, provided that the
-# above copyright notice and this permission notice appear in all
-# copies.
-#
-# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-#
 # Author:
-#   * Sam Pfeiffer
-#   * Job van Dieten
-#   * Jordi Pages
+#   * Sitong Chen
 import sys
 import rospy
 from spherical_grasps_server import SphericalGrasps
@@ -126,29 +109,101 @@ class PickAndPlaceServer(object):
 		else:
 			rospy.loginfo("Found links to allow contacts: " + str(self.links_to_allow_contact))
 #############################################################################
+		self.set_table_as = SimpleActionServer(
+			'/set_table', PickUpPoseAction,
+			execute_cb=self.set_table_cb, auto_start=False)
+		self.set_table_as.start()
+
 		self.pick_as = SimpleActionServer(
 			'/pickup_pose', PickUpPoseAction,
 			execute_cb=self.pick_cb, auto_start=False)	# A callback function to execute when the action is called. In this case, the callback is self.pick_cb.
 		self.pick_as.start()		# This starts the action server and allows it to begin accepting goals.
 
+		self.clean_as = SimpleActionServer(
+			'/clean_pose', PickUpPoseAction,
+			execute_cb=self.clean_cb, auto_start=False)	# A callback function to execute when the action is called. In this case, the callback is self.pick_cb.
+		self.clean_as.start()
+
 		self.place_as = SimpleActionServer(
 			'/place_pose', PickUpPoseAction,
 			execute_cb=self.place_cb, auto_start=False)
-		self.place_as.start()
+		self.place_as.start()	
 #############################################################################
+	def clean_cb(self, goal):
+
+		if goal is not None:
+			self.table_pose = copy.deepcopy(goal.object_pose)    # copy goal from the client
+			self.table_pose = copy.deepcopy(goal.object_pose)
+			# rospy.loginfo("Removing any previous 'part' object")
+			# self.scene.remove_attached_object("arm_tool_link")
+			# self.scene.remove_world_object("part")
+			self.scene.remove_world_object("table")
+			rospy.loginfo("Clearing octomap")
+			# self.clear_octomap_srv.call(EmptyRequest())
+			# rospy.sleep(2.0)  # Removing is fast
+			set_table_pose = copy.deepcopy(self.object_pose)
+
+			#define a virtual table below the object
+			# table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
+			table_height = self.table_pose.pose.position.z 
+			table_width  = self.table_pose.pose.orientation.y
+			table_depth  = self.table_pose.pose.orientation.x
+			set_table_pose.pose.position.x = self.table_pose.pose.position.x
+			set_table_pose.pose.position.y = self.table_pose.pose.position.y
+			set_table_pose.pose.position.z = table_height/2
+			rospy.loginfo("Table pose: %s", set_table_pose)
+
+			self.scene.add_box("table", set_table_pose, (table_depth, table_width, table_height))		# What does this do? ############
+
+			# # We need to wait for the object part to appear
+			self.wait_for_planning_scene_object("table")
+			error_code = 1
+			p_res = PickUpPoseResult()
+			rospy.loginfo("result: %s", p_res)
+			p_res.error_code = error_code
+			if error_code != 1:
+				self.clean_as.set_aborted(p_res)
+			else:
+				self.clean_as.set_succeeded(p_res)
+			rospy.loginfo('\033[92m' + "Table pose set successfully" + '\033[0m')
+			rospy.loginfo("Table pose: %s", self.table_pose)
+		else:
+			rospy.logwarn('\033[91m' + "Received goal is None" + '\033[0m')
+
+	# Return the error code
+	
+	def set_table_cb(self, goal):      
+		"""
+		:type goal: PickUpPoseGoal
+		"""
+		# Only accept the new goal if it's not None
+		if goal is not None:
+			self.table_pose = copy.deepcopy(goal.object_pose)    # copy goal from the client
+			error_code = 1
+			p_res = PickUpPoseResult()
+			p_res.error_code = error_code
+			if error_code != 1:
+				self.set_table_as.set_aborted(p_res)
+			else:
+				self.set_table_as.set_succeeded(p_res)
+			rospy.loginfo('\033[92m' + "Table pose set successfully by callback" + '\033[0m')
+			rospy.loginfo("Table pose: %s", self.table_pose)
+		else:
+			rospy.logwarn('\033[91m' + "Received goal is None" + '\033[0m')
+
+
 	def pick_cb(self, goal):
 		"""
 		:type goal: PickUpPoseGoal
 		"""
 		error_code = self.grasp_object(goal.object_pose)
+		self.object_pose = copy.deepcopy(goal.object_pose)
 		p_res = PickUpPoseResult()
 		p_res.error_code = error_code
 		if error_code != 1:
 			self.pick_as.set_aborted(p_res)
 		else:
 			self.pick_as.set_succeeded(p_res)	# Acrion server sends a result to the client
-		
-		#self.clean_table(goal.object_pose)
 
 	def place_cb(self, goal):
 		"""
@@ -182,44 +237,6 @@ class PickAndPlaceServer(object):
 
 		rospy.loginfo("'" + object_name + "'' is in scene!")
 
-	def process_info(self, msg):
-		# tag id: [table_height, table_width, table_depth]
-		id_to_info = {0:[.6, 3, .8], 1:[.6, 1, 1]}
-		self.table_detected = False
-		
-		for detection in msg.detections:
-			tag_id = detection.id[0]
-			if (tag_id == 1): # to change, to be sent by task planning
-				#rospy.loginfo(f"apriltag id: {tag_id}")
-				self.tag_info = id_to_info[tag_id]
-				#rospy.loginfo(f"height: {tag_info[0]}")
-				#rospy.loginfo(f"width: {tag_info[1]}")
-				#rospy.loginfo(f"depth: {tag_info[2]}")
-				# to add info on height, width, depth
-				
-				tag_pose_relative_to_camera = detection.pose.pose.pose
-				# transform to PoseStamped
-				tag_pose_relative_to_camera_stamped = PoseStamped()
-				tag_pose_relative_to_camera_stamped.header.stamp = rospy.Time.now()
-				tag_pose_relative_to_camera_stamped.header.frame_id = "xtion_rgb_optical_frame"
-				tag_pose_relative_to_camera_stamped.pose = tag_pose_relative_to_camera
-
-				#rospy.loginfo(f"Pose relative to camera: {tag_pose_relative_to_camera}") # debugging
-				
-				try:
-					transform = self.tf_buffer.lookup_transform("base_footprint", "xtion_rgb_optical_frame", rospy.Time(0), rospy.Duration(1.0))
-					rospy.loginfo(f"transform: {transform}")
-				except Exception as e:
-					rospy.loginfo("failed to lookup transform")
-					rospy.loginfo(e)
-
-				self.tag_pose_relative_to_base_stamped = tf2_geometry_msgs.do_transform_pose(tag_pose_relative_to_camera_stamped, transform)
-				tag_pose_relative_to_base = self.tag_pose_relative_to_base_stamped.pose
-				self.table_detected = True
-
-				#rospy.loginfo(f"transformed pose: {tag_pose_relative_to_base}")
-				
-
 	def grasp_object(self, object_pose):
 		rospy.loginfo("Removing any previous 'part' object")
 		self.scene.remove_attached_object("arm_tool_link")
@@ -237,24 +254,18 @@ class PickAndPlaceServer(object):
 		self.scene.add_box("part", object_pose, (self.object_depth, self.object_width, self.object_height))
 
 		rospy.loginfo("Second%s", object_pose.pose)
-		table_pose = copy.deepcopy(object_pose)
-		###################################################### Modify this table size ########################################
-		rospy.init_node("apriltag_detection_lister", anonymous=True)
-		self.tf_buffer = tf2_ros.Buffer()
-		self.tf_listener = tf2_ros.TransformListener(tf_buffer)
-		rospy.Subscriber("/tag_detections", AprilTagDetectionArray,self.process_info)
-
-		while (not self.table_detected):
-			rospy.sleep(1.0)
+		set_table_pose = copy.deepcopy(object_pose)
 
 		#define a virtual table below the object
-		table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.015
-		table_width  = self.tag_info[1]
-		table_depth  = self.tag_info[2]
-		table_pose.pose.position.x = self.tag_pose_relative_to_base_stamped.pose.position.x
-		table_pose.pose.position.z = table_height/2
+		# table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
+		table_height = self.table_pose.pose.position.z+0.025
+		table_width  = self.table_pose.pose.orientation.y
+		table_depth  = self.table_pose.pose.orientation.x
+		set_table_pose.pose.position.x = self.table_pose.pose.position.x
+		set_table_pose.pose.position.y = self.table_pose.pose.position.y
+		set_table_pose.pose.position.z = table_height/2
 
-		self.scene.add_box("table", table_pose, (table_depth, table_width, table_height))		# What does this do? ############
+		self.scene.add_box("table", set_table_pose, (table_depth, table_width, table_height))		# What does this do? ############
 
 		# # We need to wait for the object part to appear
 		self.wait_for_planning_scene_object()
