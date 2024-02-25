@@ -23,6 +23,7 @@ add_action_files(
   FILES
   PickUpPose.action
   Cleaning.action
+  Table.action
 )
 
 generate_messages(
