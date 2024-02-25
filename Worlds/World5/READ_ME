@@ -1,0 +1,26 @@
+copy new contents of Models folder to /tiago_public_ws/src/pal_gazebo_worlds/models
+copy new contents of World folder to /tiago_public_ws/src/pal_gazebo_worlds/worlds
+
+copy launch files to which simulation you would like to launch
+
+e.g.
+
+copy to /tiago_public_ws/src/tiago_tutorials/tiago_pick_demo/launch
+
+					      /.............../launch
+				
+				
+run in terminal as normal with command roslaunch tiago_pick_demo kitchen5table.launch
+						   ............... .............
+						   
+						   
+In order to run the tiago_navigation tutorial in kitchen5:
+
+copy Maps/kitchen5 to /.pal/tiago_maps/configurations
+
+copy tiago_navigation2.launch to /tiago_public_ws/src/tiago_simulations/tiago_2dnav_gazebo/launch
+
+run roslaunch tiago_2dnav_gazebo tiago_navigation2.launch public_sim:=true lost:=true in terminal
+
+
+

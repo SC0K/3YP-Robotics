@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   std_srvs
   moveit_ros_planning_interface
+  move_base_msgs
 )
 
 

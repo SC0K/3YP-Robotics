@@ -1,0 +1,11 @@
+Each environment has:
+a scanned map in maps folder
+a world file in worlds folder
+a pdf specifying apriltag locations and identitites
+a basic lanch file to load tiago into environment
+
+
+If want to run with navigation tutorial then follow instructions in World4 READ_ME to place the .world file in the relevant .launch file
+
+
+Maps should be placed in .pal/tiago_maps/configurations
