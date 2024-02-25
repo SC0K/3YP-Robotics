@@ -7,7 +7,7 @@ import rospy
 import time
 import moveit_commander
 from moveit_commander import PlanningSceneInterface, MoveGroupCommander
-from tiago_pick_demo.msg import PickUpPoseAction, PickUpPoseGoal, CleaningAction, CleaningActionResult
+from tiago_pick_demo.msg import PickUpPoseAction, PickUpPoseGoal, CleaningAction, CleaningActionResult, TableAction, TableActionResult
 from geometry_msgs.msg import PoseStamped, Pose
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from play_motion_msgs.msg import PlayMotionAction, PlayMotionGoal
@@ -63,6 +63,8 @@ class SphericalService(object):
 		
 		return {}
 #================================================================================================================================================================
+	
+	
 	def start_aruco_place(self, req):
 		self.pick_type.pick_aruco("place") 		# Redundant. There is no operation for "place" in the pick_aruco function
 		return {}
@@ -112,6 +114,17 @@ class PickAruco(object):
 		rospy.sleep(1.0)
 		rospy.loginfo("Done initializing PickAruco.")
 
+		self.tableID_as = SimpleActionServer('/tableID_action', TableAction, execute_cb=self.set_tableID, auto_start=False)
+		self.tableID_as.start()
+
+	def set_tableID(self, goal):
+		self.table_id = goal.table_id
+		rospy.loginfo("Table ID is set to: " + str(self.table_id))
+		result = TableActionResult()
+		result.result.error_code = 1
+		self.tableID_as.set_succeeded(result.result)
+		return {}
+
 	def strip_leading_slash(self, s):
 		return s[1:] if s.startswith("/") else s
 	
@@ -139,6 +152,7 @@ class PickAruco(object):
 			#======================================================================== Getting The table pose from Apriltag ==================================================
 			
 			detector = AprilTagDetector()
+			detector.Set_tableID(self.table_id)
 			while not detector.table_detected:
 				rospy.loginfo("Waiting for table detection")
 				rospy.sleep(1.0)
@@ -157,15 +171,13 @@ class PickAruco(object):
 			self.clean_ac.send_goal_and_wait(table_info_goal)			# Send the goal to the action server (/pickup_pose) and wait for the result
 			rospy.loginfo("Done setting cleaning scene!")
 			result = self.clean_table(table_info_goal.object_pose)		# Clean the table
+
 			rospy.loginfo("Cleaning Done")
 			return result
 
 
 	
 #==============================================================================================================================================================
-
-
-
 		
 	def pick_aruco(self, string_operation):
 		self.prepare_robot()		# Lower head.
@@ -203,8 +215,8 @@ class PickAruco(object):
 			self.pick_g = PickUpPoseGoal()		# The Goal message for the action server
 #==============================================================================================================================================================
 		#======================================================================== Getting The table pose from Apriltag ==================================================
-			
 			detector = AprilTagDetector()
+			detector.Set_tableID(self.table_id)
 			while not detector.table_detected:
 				rospy.loginfo("Waiting for table detection")
 				rospy.sleep(1.0)
@@ -244,9 +256,6 @@ class PickAruco(object):
 			result.result.error_code = 1
 			return result
 			
-
-			
-
 
 	def lower_head(self):
 		rospy.loginfo("Moving head down")
@@ -411,14 +420,16 @@ class AprilTagDetector:
 		self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 		self.table_apriltag_s = rospy.Subscriber("/tag_detections", AprilTagDetectionArray, self.process_info)
 		self.table_detected = False
-
+	def Set_tableID(self, table_id):
+		self.table_id = table_id
+		rospy.loginfo("Table ID is set to: " + str(self.table_id))	
 	def process_info(self, msg):
 		# tag id: [table_height, table_width, table_depth]
 		id_to_info = {0: [0.6, 1.2, 0.6], 1: [.6, 1, 1]}
 
 		for detection in msg.detections:
 			tag_id = detection.id[0]	
-			if tag_id == 0:  # to change, to be sent by task planning
+			if tag_id == self.table_id:  # to change, to be sent by task planning
 				self.table_apriltag_s.unregister()
 				# rospy.loginfo(f"apriltag id: {tag_id}")
 				self.tag_info = id_to_info[tag_id]

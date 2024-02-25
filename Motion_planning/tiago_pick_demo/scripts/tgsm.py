@@ -3,7 +3,7 @@ import rospy
 import smach
 import smach_ros
 import actionlib
-from tiago_pick_demo.msg import CleaningAction, CleaningGoal
+from tiago_pick_demo.msg import CleaningAction, CleaningGoal, TableAction, TableGoal
 
 # need to import locations
 
@@ -87,6 +87,25 @@ class Place(smach.State):
         else:
             rospy.loginfo('Place unsuccessful')
             return 'failure'
+class TableID(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=['success', 'failure'], input_keys=['table_id'])
+        self.client = actionlib.SimpleActionClient('/tableID_action', TableAction)
+        self.client.wait_for_server()
+
+    def execute(self, userdata):
+        rospy.loginfo('Starting placing')
+        goal = TableGoal()  
+        goal.table_id = userdata.table_id
+        self.client.send_goal(goal)
+        self.client.wait_for_result()
+        if self.client.get_state() == actionlib.GoalStatus.SUCCEEDED:
+            rospy.loginfo('Placing successful')
+            return 'success'
+        else:
+            rospy.loginfo('Place unsuccessful')
+            return 'failure'
+                
         
 # class ReturnToBase(smach.State):
 #     def __init__(self, base_location):
@@ -123,6 +142,10 @@ def main():
         # navigate and clean first surface
         # smach.StateMachine.add('NAVIGATETOSURFACE1', NavigateToSurface(target_location=surface_1),
         #                        transitions = {'success':'CLEANSURFACE1', 'failure':'RETURNTOBASE'})
+        smach.StateMachine.add('Table1', TableID(),
+                               transitions = {'success':'PICK', 'failure':'task_failed'},
+                               remapping={'table_id': 'table_id1'})
+        
         smach.StateMachine.add('PICK', Pick(),
                                transitions = {'success':'CLEANSURFACE1', 'failure':'task_failed'})
         
@@ -133,6 +156,8 @@ def main():
         smach.StateMachine.add('CLEANSURFACE1', CleanSurface(),
                                transitions = {'success':'PLACE', 'failure':'task_failed'})
         
+    sm.userdata.table_id1 = 0
+    sm.userdata.table_id2 = 1    
         # # navigate and clean second surface
 
         # smach.StateMachine.add('NAVIGATETOSURFACE2', NavigateToSurface(target_location=surface_2),

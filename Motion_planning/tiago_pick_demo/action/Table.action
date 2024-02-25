@@ -1,0 +1,8 @@
+#goal definition
+int32 table_id
+---
+#result definition
+# Comes from moveit_msgs/MoveItErrorCodes
+int32 error_code
+---
+#feedback
