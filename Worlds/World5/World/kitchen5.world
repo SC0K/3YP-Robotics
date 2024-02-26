@@ -267,10 +267,10 @@
       <pose>4.14694 -0.547349 0 0 -0 0</pose>
     </model>
     <state world_name='default'>
-      <sim_time>1026 485000000</sim_time>
-      <real_time>404 384369009</real_time>
-      <wall_time>1708355864 50582612</wall_time>
-      <iterations>401980</iterations>
+      <sim_time>1075 109000000</sim_time>
+      <real_time>48 917535822</real_time>
+      <wall_time>1708954583 386923352</wall_time>
+      <iterations>48624</iterations>
       <model name='Apriltag36_11_00000'>
         <pose>0.5 -1.5 0.796 0 -0 0</pose>
         <scale>1 1 1</scale>
@@ -341,31 +341,11 @@
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
-      <model name='aruco_cube'>
-        <pose>0.650003 -1.29988 0.852264 -0.003739 3.4e-05 8e-06</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0.650003 -1.29988 0.852264 -0.003739 3.4e-05 8e-06</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>-0 -0 -0 0 -0 0</acceleration>
-          <wrench>-0 -0 -0 0 -0 0</wrench>
-        </link>
-      </model>
-      <model name='aruco_cube_0'>
-        <pose>2.84981 -1.3 0.85239 0.000172 -0.000466 -4.6e-05</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>2.84981 -1.3 0.85239 0.000172 -0.000466 -4.6e-05</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>-0 -0 -0 0 -0 0</acceleration>
-          <wrench>-0 -0 -0 0 -0 0</wrench>
-        </link>
-      </model>
       <model name='aruco_cube_1'>
-        <pose>-1.84976 -1.29983 0.852435 -0.000288 0.000891 6.7e-05</pose>
+        <pose>-1.84976 -1.29983 0.852435 -0.000243 0.00088 6.7e-05</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>-1.84976 -1.29983 0.852435 -0.000288 0.000891 6.7e-05</pose>
+          <pose>-1.84976 -1.29983 0.852435 -0.000243 0.00088 6.7e-05</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>-0 -0 -0 0 -0 0</acceleration>
           <wrench>-0 -0 -0 0 -0 0</wrench>
@@ -639,101 +619,6 @@
       <allow_auto_disable>1</allow_auto_disable>
       <pose>0.899394 0.612936 0 0 -0 0</pose>
     </model>
-    <model name='aruco_cube'>
-      <static>0</static>
-      <link name='link'>
-        <collision name='base_collision'>
-          <pose>0 0 -0.05 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.1 0.1 0.005</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='base_visual'>
-          <pose>0 0 -0.05 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.1 0.1 0.005</size>
-            </box>
-          </geometry>
-          <material/>
-        </visual>
-        <inertial>
-          <mass>0.05</mass>
-          <inertia>
-            <ixx>5.2083e-05</ixx>
-            <ixy>0</ixy>
-            <ixz>0</ixz>
-            <iyy>5.2083e-05</iyy>
-            <iyz>0</iyz>
-            <izz>2.0833e-05</izz>
-          </inertia>
-          <pose>0 0 0 0 -0 0</pose>
-        </inertial>
-        <collision name='colision'>
-          <pose>0 0 0 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.05 0.05 0.1</size>
-            </box>
-          </geometry>
-          <surface>
-            <friction>
-              <ode>
-                <mu>30</mu>
-                <mu2>30</mu2>
-                <fdir1>0 0 0</fdir1>
-              </ode>
-              <torsional>
-                <ode/>
-              </torsional>
-            </friction>
-            <contact>
-              <ode>
-                <kp>1e+06</kp>
-                <kd>100</kd>
-                <min_depth>0.0025</min_depth>
-                <max_vel>1</max_vel>
-              </ode>
-            </contact>
-            <bounce/>
-          </surface>
-          <max_contacts>10</max_contacts>
-        </collision>
-        <visual name='visual1'>
-          <pose>0 0 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://aruco_cube/meshes/aruco_cube_5cm.dae</uri>
-              <scale>1 1 2</scale>
-            </mesh>
-          </geometry>
-        </visual>
-        <velocity_decay>
-          <linear>0</linear>
-          <angular>0</angular>
-        </velocity_decay>
-        <self_collide>0</self_collide>
-        <kinematic>0</kinematic>
-        <gravity>1</gravity>
-        <enable_wind>0</enable_wind>
-      </link>
-      <pose>2.52526 -0.008665 0 0 -0 0</pose>
-    </model>
     <model name='Apriltag36_11_00000'>
       <link name='main'>
         <pose>0 0 0 0 -0 0</pose>
@@ -784,7 +669,7 @@
     </model>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>1.42128 -2.31967 3.1424 0 1.2658 1.57538</pose>
+        <pose>0.299443 -3.36973 7.98202 0 1.2658 1.57538</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
@@ -1041,101 +926,6 @@
       <static>1</static>
       <pose>-2.78515 0.989354 0 0 -0 0</pose>
     </model>
-    <model name='aruco_cube_0'>
-      <static>0</static>
-      <link name='link'>
-        <collision name='base_collision'>
-          <pose>0 0 -0.05 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.1 0.1 0.005</size>
-            </box>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='base_visual'>
-          <pose>0 0 -0.05 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.1 0.1 0.005</size>
-            </box>
-          </geometry>
-          <material/>
-        </visual>
-        <inertial>
-          <mass>0.05</mass>
-          <inertia>
-            <ixx>5.2083e-05</ixx>
-            <ixy>0</ixy>
-            <ixz>0</ixz>
-            <iyy>5.2083e-05</iyy>
-            <iyz>0</iyz>
-            <izz>2.0833e-05</izz>
-          </inertia>
-          <pose>0 0 0 0 -0 0</pose>
-        </inertial>
-        <collision name='colision'>
-          <pose>0 0 0 0 -0 0</pose>
-          <geometry>
-            <box>
-              <size>0.05 0.05 0.1</size>
-            </box>
-          </geometry>
-          <surface>
-            <friction>
-              <ode>
-                <mu>30</mu>
-                <mu2>30</mu2>
-                <fdir1>0 0 0</fdir1>
-              </ode>
-              <torsional>
-                <ode/>
-              </torsional>
-            </friction>
-            <contact>
-              <ode>
-                <kp>1e+06</kp>
-                <kd>100</kd>
-                <min_depth>0.0025</min_depth>
-                <max_vel>1</max_vel>
-              </ode>
-            </contact>
-            <bounce/>
-          </surface>
-          <max_contacts>10</max_contacts>
-        </collision>
-        <visual name='visual1'>
-          <pose>0 0 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://aruco_cube/meshes/aruco_cube_5cm.dae</uri>
-              <scale>1 1 2</scale>
-            </mesh>
-          </geometry>
-        </visual>
-        <velocity_decay>
-          <linear>0</linear>
-          <angular>0</angular>
-        </velocity_decay>
-        <self_collide>0</self_collide>
-        <kinematic>0</kinematic>
-        <gravity>1</gravity>
-        <enable_wind>0</enable_wind>
-      </link>
-      <pose>2.36292 -1.24678 0 0 -0 0</pose>
-    </model>
     <model name='aruco_cube_1'>
       <static>0</static>
       <link name='link'>
@@ -1170,7 +960,7 @@
           <material/>
         </visual>
         <inertial>
-          <mass>0.05</mass>
+          <mass>0.005</mass>
           <inertia>
             <ixx>5.2083e-05</ixx>
             <ixy>0</ixy>
