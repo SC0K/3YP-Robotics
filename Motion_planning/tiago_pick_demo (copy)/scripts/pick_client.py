@@ -141,7 +141,7 @@ class PickAruco(object):
 #The following code is for placing the object back to its original position.
 #================================================================	
 		# Raise arm
-		self.prepare_placing_robot()
+		self.prepare_cleaning_robot()
 		rospy.loginfo("Raise object done.")
 
 		# Place the object back to its position
@@ -181,12 +181,14 @@ class PickAruco(object):
 			self.clean_motion_ac.send_goal_and_wait(table_info_goal)
 			# result = self.clean_table(table_info_goal.object_pose)		# Clean the table
 			rospy.loginfo('\033[92m' + "Cleaning Done" + '\033[0m')
+			rospy.sleep(2.0)
 			result = CleaningActionResult()
 			result.result.error_code = 1
 			self.prep_clean_ac.send_goal_and_wait(table_info_goal)
 			rospy.loginfo('\033[92m' + "Prepare cleaning Success!!!!!!!!!" + '\033[0m')
 			# self.prepare_cleaning_robot()
 			# self.prepare_clean()
+			rospy.sleep(2.0)
 			return result
 
 
