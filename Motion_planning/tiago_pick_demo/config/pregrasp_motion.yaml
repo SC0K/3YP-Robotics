@@ -12,6 +12,15 @@ play_motion:
       - positions: [0.34, 0.10, 0.47, -0.20, 1.56, 1.60, 0.25, 1.19]
         time_from_start: 10.5
 
+    preclean:
+        joints: [torso_lift_joint, arm_1_joint,
+        arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint,
+        arm_6_joint, arm_7_joint]
+        points:
+        - positions: [0.34, 0.47, 0.04, -1.95, 0.9, -1.95, 0.646, 1.57]
+          time_from_start: 5.0
+        
+
     pick_final_pose:
       joints: [torso_lift_joint, arm_1_joint,
       arm_2_joint, arm_3_joint, arm_4_joint, arm_5_joint,

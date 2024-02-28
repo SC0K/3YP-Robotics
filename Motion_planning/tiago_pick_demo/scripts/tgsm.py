@@ -108,10 +108,11 @@ class Pick(smach.State):
             return 'failure'
         
 class CleanSurface(smach.State):
-    def __init__(self):
-        smach.State.__init__(self, outcomes=['success', 'failure'])
+    def __init__(self,timeout_seconds = 60):
+        smach.State.__init__(self, outcomes=['success', 'failure','timeout'])
         self.client = actionlib.SimpleActionClient('cleaning_action', CleaningAction)
         self.client.wait_for_server()
+        self.timeout_seconds = rospy.Duration(timeout_seconds)
 
         
     def execute(self, userdata):
@@ -119,13 +120,17 @@ class CleanSurface(smach.State):
         goal = CleaningGoal()  
         goal.task.data = "clean"
         self.client.send_goal(goal)
-        self.client.wait_for_result()
-        if self.client.get_state() == actionlib.GoalStatus.SUCCEEDED:
-            rospy.loginfo('Surface cleaning successful')
-            return 'success'
+        # self.client.wait_for_result()
+        if self.client.wait_for_result(self.timeout_seconds):
+            if self.client.get_state() == actionlib.GoalStatus.SUCCEEDED:
+                rospy.loginfo('Surface cleaning successful')
+                return 'success'
+            else:
+                rospy.loginfo('Surface cleaning unsuccessful')
+                return 'failure'
         else:
-            rospy.loginfo('Surface cleaning unsuccessful')
-            return 'failure'
+            rospy.loginfo('Surface cleaning timed out')
+            return 'timeout'
 
 class Place(smach.State):
     def __init__(self):
@@ -192,8 +197,8 @@ def main():
     sm = smach.StateMachine(outcomes=['task_completed', 'returned_to_base', 'task_failed'])
 
 
-    surface_1 = [-1.25, 2.5, 0, 0, 0, 1] # april tag id=2
-    surface_2 = [-3.65, 2.5, 0, 0, 0, 1]
+    surface_1 = [-1.4, 2.4, 0, 0, 0, 1] # april tag id=2
+    surface_2 = [-2.2, 2.4, 0, 0, 1, 0]
 
     with sm:
 
@@ -209,16 +214,27 @@ def main():
         
         smach.StateMachine.add('PICK', Pick(),
                                transitions = {'success':'CLEANSURFACE1', 'failure':'task_failed'})
+
+        
+        smach.StateMachine.add('CLEANSURFACE1', CleanSurface(timeout_seconds=600),
+                               transitions = {'success':'NAVIGATETOSURFACE2', 'failure':'task_failed', 'timeout':'NAVIGATETOSURFACE2'})
+        
+        smach.StateMachine.add('NAVIGATETOSURFACE2', NavigateToSurface(target_location=surface_2),
+                                transitions = {'success':'Table2', 'failure':'task_failed'})
+        
+        smach.StateMachine.add('Table2', TableID(),
+                               transitions = {'success':'CLEANSURFACE2', 'failure':'task_failed'},
+                               remapping={'table_id': 'table_id2'})
+        
+        smach.StateMachine.add('CLEANSURFACE2', CleanSurface(timeout_seconds=600),
+                               transitions = {'success':'PLACE', 'failure':'task_failed', 'timeout':'PLACE'})
         
         smach.StateMachine.add('PLACE', Place(),
                                transitions = {'success':'task_completed', 'failure':'task_failed'})
 
         
-        smach.StateMachine.add('CLEANSURFACE1', CleanSurface(),
-                               transitions = {'success':'PLACE', 'failure':'task_failed'})
-        
     sm.userdata.table_id1 = 2
-    sm.userdata.table_id2 = 1    
+    sm.userdata.table_id2 = 0    
         # # navigate and clean second surface
 
         # smach.StateMachine.add('NAVIGATETOSURFACE2', NavigateToSurface(target_location=surface_2),

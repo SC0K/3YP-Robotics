@@ -33,4 +33,13 @@
       <node name="pick_demo_rviz" pkg="rviz" type="rviz" args="-d $(find tiago_pick_demo)/config/rviz/tiago_pick_demo.rviz" />
   </group>
 
+<!-- Other nodes -->
+
+  <node name="clean_motion_server" pkg="tiago_pick_demo" type="clean_motion_server.py" output="screen">
+        <!-- Any parameters your node needs -->
+  </node>
+
+  <node name="prep_clean" pkg="tiago_pick_demo" type="prep_clean.py" output="screen">
+  
+  </node>
 </launch>

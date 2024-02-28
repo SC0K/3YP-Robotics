@@ -21,12 +21,12 @@ def clean_table():
     group_arm_torso.set_planning_time(10.0)  # Increase planning time
 
     ## These are the maximum specifications of the table for which the arm can clean in one go. ##
-    sponge_width = 0.1
-    table_width = 0.76
-    table_depth = 0.4
+    sponge_width = 0.05
+    table_width = 0.4
+    table_depth = 0.3
     table_center_y = 0.0
-    table_center_x = 0.4+table_depth/2+0.1       # red axis
-    table_center_z = 0.8
+    table_center_x = 0.7     # red axis
+    table_center_z = 1.0
     step_num = 3
     # step_num = math.floor(table_width/(sponge_width))  # Decrease number of waypoints
     
@@ -57,6 +57,7 @@ def clean_table():
 
     start = rospy.Time.now()
     group_arm_torso.execute(plan, wait=True)
+    rospy.loginfo("state: %s" % group_arm_torso.get_current_state())
     rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
 
     moveit_commander.roscpp_shutdown()

@@ -10,6 +10,7 @@ from tf.transformations import quaternion_from_euler
 
 def move():
     moveit_commander.roscpp_initialize(sys.argv)
+
     rospy.init_node('plan_arm_torso_ik', anonymous=True)
 
     # if len(args) < 7:

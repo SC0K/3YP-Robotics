@@ -48,7 +48,6 @@ class SphericalService(object):
 		self.clean_as.start()
 		self.place_as = SimpleActionServer('/placing_action', CleaningAction, execute_cb=self.motion_task, auto_start=False)
 		self.place_as.start()
-
 #================================================================================================================================================================
 	def motion_task(self, goal):
 		if goal.task.data == "pick":
@@ -56,6 +55,7 @@ class SphericalService(object):
 			self.pick_as.set_succeeded(result.result) 
 		elif goal.task.data == "clean":
 			result = self.pick_type.clean_table_master("clean")
+			# self.pick_type.prepare_clean()
 			self.clean_as.set_succeeded(result.result)   
 		else:
 			result = self.pick_type.place()
@@ -89,6 +89,13 @@ class PickAruco(object):
 		self.clean_ac = SimpleActionClient('/clean_pose', PickUpPoseAction) 	# Create an action client for the '/table_pose' action server
 		self.clean_ac.wait_for_server()
 		rospy.loginfo('\033[92m' + "Connected to table_pose server!" + '\033[0m')
+
+		self.clean_motion_ac = SimpleActionClient('/clean_motion', PickUpPoseAction) 	
+		self.clean_motion_ac.wait_for_server() 		# Create an action client for the '/table_pose' action server
+		rospy.loginfo('\033[92m' + "Connected to prep_clean server!" + '\033[0m')
+
+		self.prep_clean_ac = SimpleActionClient('/prep_clean', PickUpPoseAction) 	
+		self.prep_clean_ac.wait_for_server() 		# Create an action client for the '/table_pose' action server
 
 		rospy.loginfo("Waiting for /place_pose AS...")
 		self.place_as = SimpleActionClient('/place_pose', PickUpPoseAction) 
@@ -147,7 +154,8 @@ class PickAruco(object):
 		return result
 
 	def clean_table_master(self, string_operation):
-		self.prepare_clean()
+		# self.prepare_clean()
+		# self.prepare_cleaning_robot()
 		if string_operation == "clean":
 			#======================================================================== Getting The table pose from Apriltag ==================================================
 			
@@ -170,9 +178,15 @@ class PickAruco(object):
 			rospy.loginfo('\033[92m' + "Done setting table!" + '\033[0m')
 			self.clean_ac.send_goal_and_wait(table_info_goal)			# Send the goal to the action server (/pickup_pose) and wait for the result
 			rospy.loginfo("Done setting cleaning scene!")
-			result = self.clean_table(table_info_goal.object_pose)		# Clean the table
-
-			rospy.loginfo("Cleaning Done")
+			self.clean_motion_ac.send_goal_and_wait(table_info_goal)
+			# result = self.clean_table(table_info_goal.object_pose)		# Clean the table
+			rospy.loginfo('\033[92m' + "Cleaning Done" + '\033[0m')
+			result = CleaningActionResult()
+			result.result.error_code = 1
+			self.prep_clean_ac.send_goal_and_wait(table_info_goal)
+			rospy.loginfo('\033[92m' + "Prepare cleaning Success!!!!!!!!!" + '\033[0m')
+			# self.prepare_cleaning_robot()
+			# self.prepare_clean()
 			return result
 
 
@@ -181,8 +195,27 @@ class PickAruco(object):
 		
 	def pick_aruco(self, string_operation):
 		self.prepare_robot()		# Lower head.
+#==============================================================================================================================================================
+#======================================================================== Getting The table pose from Apriltag ==================================================
+		detector = AprilTagDetector()
+		detector.Set_tableID(self.table_id)
+		while not detector.table_detected:
+			rospy.loginfo("Waiting for table detection")
+			rospy.sleep(1.0)
+		table_info_goal = PickUpPoseGoal()
+		table_info_goal.object_pose.pose.orientation.y = detector.tag_info[1]
+		table_info_goal.object_pose.pose.orientation.x = detector.tag_info[2]
+		table_info_goal.object_pose.pose.position.x = detector.tag_pose_relative_to_base_stamped.pose.position.x
+		table_info_goal.object_pose.pose.position.y = detector.tag_pose_relative_to_base_stamped.pose.position.y
+		table_info_goal.object_pose.pose.position.z = detector.tag_pose_relative_to_base_stamped.pose.position.z
 
-
+		table_info_goal.object_pose.header.frame_id = 'base_footprint'
+		table_info_goal.object_pose.pose.orientation.w = 1.0
+		rospy.loginfo('\033[92m' + str(table_info_goal) + '\033[0m')
+		self.set_table_as.send_goal_and_wait(table_info_goal)
+		rospy.loginfo("Done Picking the object now")
+#==============================================================================================================================================================
+		
 #=============================================================== Getting the pose of the aruco marker ===============================================================
 		rospy.sleep(2.0)
 		rospy.loginfo("spherical_grasp_gui: Waiting for an aruco detection")
@@ -213,26 +246,7 @@ class PickAruco(object):
 				rospy.sleep(0.01)
 				ps.header.stamp = self.tfBuffer.get_latest_common_time("base_footprint", aruco_pose.header.frame_id)
 			self.pick_g = PickUpPoseGoal()		# The Goal message for the action server
-#==============================================================================================================================================================
-		#======================================================================== Getting The table pose from Apriltag ==================================================
-			detector = AprilTagDetector()
-			detector.Set_tableID(self.table_id)
-			while not detector.table_detected:
-				rospy.loginfo("Waiting for table detection")
-				rospy.sleep(1.0)
-			table_info_goal = PickUpPoseGoal()
-			table_info_goal.object_pose.pose.orientation.y = detector.tag_info[1]
-			table_info_goal.object_pose.pose.orientation.x = detector.tag_info[2]
-			table_info_goal.object_pose.pose.position.x = detector.tag_pose_relative_to_base_stamped.pose.position.x
-			table_info_goal.object_pose.pose.position.y = detector.tag_pose_relative_to_base_stamped.pose.position.y
-			table_info_goal.object_pose.pose.position.z = detector.tag_pose_relative_to_base_stamped.pose.position.z
 
-			table_info_goal.object_pose.header.frame_id = 'base_footprint'
-			table_info_goal.object_pose.pose.orientation.w = 1.0
-			rospy.loginfo('\033[92m' + str(table_info_goal) + '\033[0m')
-			self.set_table_as.send_goal_and_wait(table_info_goal)
-			rospy.loginfo("Done Picking the object now")
-#==============================================================================================================================================================
 
 		if string_operation == "pick":
 
@@ -279,7 +293,18 @@ class PickAruco(object):
 		self.lower_head()
 
 		rospy.loginfo("Robot prepared.")
-				
+	def prepare_cleaning_robot(self):
+		rospy.loginfo("Unfold arm safely")
+		pmg = PlayMotionGoal()
+		pmg.motion_name = 'preclean'
+		pmg.skip_planning = False
+		self.play_m_as.send_goal_and_wait(pmg)
+		rospy.loginfo("Done.")
+
+		self.lower_head()
+
+		rospy.loginfo("Robot prepared.")
+
 	def prepare_placing_robot(self):
 		rospy.loginfo("Grasp Success")
 		pmg = PlayMotionGoal()
@@ -292,14 +317,17 @@ class PickAruco(object):
 
 		rospy.loginfo("Robot prepared to place")
 
+###### clean_table and prepare_clean are not used in the current implementation. They are implemented in seperate action servers 
+		#(seperated nodes in clean_motion_server.py and prep_clean.py).
 	def clean_table(self, table_pose):
 			rospy.loginfo('\033[92m' + "Cleaning table" + '\033[0m')
 			moveit_commander.roscpp_initialize([])
 			group_arm_torso = MoveGroupCommander("arm_torso")
-			group_arm_torso.set_planner_id("LIN")
+			group_arm_torso.set_planner_id("SBLkConfigDefault")
 			group_arm_torso.set_pose_reference_frame("base_footprint")
 			group_arm_torso.set_max_velocity_scaling_factor(1.0)
 			group_arm_torso.set_planning_time(20.0)  # Increase planning time
+			
 
 			sponge_width = 0.05
 			table_width = table_pose.pose.orientation.y-0.34
@@ -315,16 +343,16 @@ class PickAruco(object):
 				table_center_x = 0.6
 			
 			## Dont change these values for now
-			table_width = 0.5
+			table_width = 0.4
 			table_depth = 0.3
 			table_center_y = 0.0
-			table_center_x = 0.7
-			table_center_z = table_pose.pose.position.z + 0.15
-			step_num = math.floor(table_width/sponge_width+1)
+			table_center_x = 0.7 # 0.7
+			table_center_z = 1.0 #table_pose.pose.position.z + 0.4	
+			step_num = math.floor(table_width/sponge_width) #step_num = math.floor(table_width/sponge_width+1)
 			
 			waypoints = []
 			waypoints_y = np.linspace(table_center_y-table_width/2+sponge_width/2, table_center_y+table_width/2-sponge_width/2, step_num)
-			waypoints_x = [table_center_x-table_depth/2+sponge_width/2, table_center_x+table_depth/2-sponge_width/2]
+			waypoints_x = [table_center_x-table_depth/2+sponge_width/2, table_center_x+table_depth/2-sponge_width/2-0.05]
 			waypoints_z_angle = np.linspace(-50, 50, step_num)
 
 			for i in range(step_num):
@@ -351,10 +379,12 @@ class PickAruco(object):
 				return result
 
 			start = rospy.Time.now()
+			# group_arm_torso.set_goal_position_tolerance(0.5)  # 5 cm
+			# group_arm_torso.set_goal_orientation_tolerance(1.5)  # 0.5 radians
 			group_arm_torso.execute(plan, wait=True)
-			rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
+			group_arm_torso.stop()
 			moveit_commander.roscpp_shutdown()
-			
+			rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
 			result.result.error_code = 1
 			return result
 
@@ -385,31 +415,30 @@ class PickAruco(object):
 		group_arm_torso.set_planner_id("LIN")
 		group_arm_torso.set_pose_reference_frame("base_footprint")
 		group_arm_torso.set_pose_target(goal_pose)
-
+		rospy.loginfo("Preparing the robot for cleaning")
 		rospy.loginfo("Planning to move %s to a target pose expressed in %s" % 
 					(group_arm_torso.get_end_effector_link(), group_arm_torso.get_planning_frame()))
 
 		group_arm_torso.set_start_state_to_current_state()
 		group_arm_torso.set_max_velocity_scaling_factor(1.0)
 
-		group_arm_torso.set_planning_time(10.0)
+		group_arm_torso.set_planning_time(30.0)
 		success, plan, planning_time, _ = group_arm_torso.plan()
 
 		if success:
 			rospy.loginfo("Plan found in %s seconds" % planning_time)
-			rospy.loginfo('\033[92m' + "Prepare cleaning Success!!!!!!!!!" + '\033[0m')
 		else:
 			rospy.loginfo("Planning failed")
 
 
 		start = rospy.Time.now()
-		# group_arm_torso.go()
-		group_arm_torso.execute(plan, wait=True)
+		group_arm_torso.go()
+		# group_arm_torso.execute(plan, wait=True)
 		rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
-
+		group_arm_torso.stop()
 		moveit_commander.roscpp_shutdown()
-
 		self.lower_head()
+		rospy.loginfo('\033[92m' + "Prepare cleaning Success!!!!!!!!!" + '\033[0m')
 
 				
 		
@@ -425,7 +454,7 @@ class AprilTagDetector:
 		rospy.loginfo("Table ID is set to: " + str(self.table_id))	
 	def process_info(self, msg):
 		# tag id: [table_height, table_width, table_depth]
-		id_to_info = {0: [0.6, 1.2, 0.6], 1: [0.6, 1.2, 0.6],2: [0.6, 1.2, 0.6],3: [0.6, 1.2, 0.6],4: [0.6, 1.2, 0.6]}
+		id_to_info = {0: [0.3, 1.2, 0.6], 1: [0.3, 1.2, 0.6],2: [0.3, 1.2, 0.6],3: [0.6, 1.2, 0.6],4: [0.6, 1.2, 0.6]}
 
 		for detection in msg.detections:
 			tag_id = detection.id[0]	
