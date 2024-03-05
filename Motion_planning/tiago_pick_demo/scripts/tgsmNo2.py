@@ -201,6 +201,7 @@ def main():
 
 
     surface_1 = [-4.2, 1.83, 0, 0, 1, 0] # april tag id=1
+    surface_2 = [-3.65, 1.83, 0, 0, 0 , 1] #april tag id=0
     sponge_table = [-0.136, 0.703, 0, 0, 0, 1] # april tag id=3
 
     with sm:
@@ -226,7 +227,17 @@ def main():
                                remapping={'table_id': 'table_id1'})
        
         smach.StateMachine.add('CLEANSURFACE1', CleanSurface(),
-                               transitions = {'success':'RETURNTOBASE', 'failure':'task_failed', 'timeout' : 'RETURNTOBASE'})
+                               transitions = {'success':'NAVIGATETOSURFACE2', 'failure':'task_failed', 'timeout' : 'RETURNTOBASE'})
+                               
+        smach.StateMachine.add('NAVIGATETOSURFACE2', NavigateToSurface(target_location=surface_2),
+        			transitions = {'success':'Table2', 'failure':'task_failed'})
+        			
+        smach.StateMachine.add('Table2', TableID(),
+                               transitions = {'success':'CLEANSURFACE2', 'failure':'task_failed'},
+                               remapping={'table_id': 'table_id2'})
+        			
+        smach.StateMachine.add('CLEANSURFACE2', CleanSurface(),
+                               transitions = {'success':'RETURNTOBASE', 'failure':'task_failed', 'timeout' : 'RETURNTOBASE'})	
                                
         smach.StateMachine.add('RETURNTOBASE', NavigateToBase(),
                                 transitions={'success':'returned_to_base', 'failure':'task_failed'})        
@@ -238,7 +249,8 @@ def main():
         #smach.StateMachine.add('PLACE', Place(),
                             #   transitions = {'success':'task_completed', 'failure':'task_failed'})
     sm.userdata.sponge_id = 3
-    sm.userdata.table_id1 = 1    
+    sm.userdata.table_id1 = 1  
+    sm.userdata.table_id2 = 0  
         # # navigate and clean second surface
 
         # smach.StateMachine.add('NAVIGATETOSURFACE2', NavigateToSurface(target_location=surface_2),
