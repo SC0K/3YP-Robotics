@@ -77,10 +77,12 @@ class CleanMotion():
                 start = rospy.Time.now()
                 # group_arm_torso.set_goal_position_tolerance(0.5)  # 5 cm
                 # group_arm_torso.set_goal_orientation_tolerance(1.5)  # 0.5 radians
+                rospy.loginfo('\033[92m' + "Executing plan"+ '\033[0m')
                 group_arm_torso.execute(plan, wait=True)
+                # rospy.sleep(30)
                 group_arm_torso.stop()
                 rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
-                moveit_commander.roscpp_shutdown()
+                # moveit_commander.roscpp_shutdown()
                 result.error_code = 1
                 self.clean_table_as.set_succeeded(result)
 

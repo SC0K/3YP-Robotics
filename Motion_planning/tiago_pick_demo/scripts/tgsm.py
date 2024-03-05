@@ -227,10 +227,10 @@ def main():
                                remapping={'table_id': 'table_id2'})
         
         smach.StateMachine.add('CLEANSURFACE2', CleanSurface(timeout_seconds=600),
-                               transitions = {'success':'PLACE', 'failure':'task_failed', 'timeout':'PLACE'})
+                               transitions = {'success':'task_completed', 'failure':'task_failed', 'timeout':'task_completed'})
         
-        smach.StateMachine.add('PLACE', Place(),
-                               transitions = {'success':'task_completed', 'failure':'task_failed'})
+        # smach.StateMachine.add('PLACE', Place(),
+        #                        transitions = {'success':'task_completed', 'failure':'task_failed'})
 
         
     sm.userdata.table_id1 = 2

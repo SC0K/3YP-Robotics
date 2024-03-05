@@ -52,9 +52,10 @@ class PrepCleanMotion():
 
         start = rospy.Time.now()
         group_arm_torso.go()
+        group_arm_torso.stop()
         rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
 
-        moveit_commander.roscpp_shutdown()
+        # moveit_commander.roscpp_shutdown()
         result = PickUpPoseResult()
         result.error_code = 1
         self.clean_table_as.set_succeeded(result)
