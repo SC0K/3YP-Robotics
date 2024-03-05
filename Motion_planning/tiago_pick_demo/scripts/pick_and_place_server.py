@@ -132,6 +132,146 @@ class PickAndPlaceServer(object):
 			'/place_pose', PickUpPoseAction,
 			execute_cb=self.place_cb, auto_start=False)
 		self.place_as.start()	
+
+
+
+	def pick_cb(self, goal):
+		"""
+		:type goal: PickUpPoseGoal
+		"""
+		error_code = self.grasp_object(goal.object_pose)
+		self.object_pose = copy.deepcopy(goal.object_pose)
+		p_res = PickUpPoseResult()
+		p_res.error_code = error_code
+		if error_code != 1:
+			self.pick_as.set_aborted(p_res)
+		else:
+			self.pick_as.set_succeeded(p_res)	# Acrion server sends a result to the client
+
+	def place_cb(self, goal):
+		"""
+		:type goal: PickUpPoseGoal
+		"""
+		error_code = self.place_object(goal.object_pose)
+		p_res = PickUpPoseResult()
+		p_res.error_code = error_code
+		if error_code != 1:
+			self.place_as.set_aborted(p_res)
+		else:
+			self.place_as.set_succeeded(p_res)
+
+	def wait_for_planning_scene_object(self, object_name='part'):
+		rospy.loginfo(
+			"Waiting for object '" + object_name + "'' to appear in planning scene...")
+		gps_req = GetPlanningSceneRequest()
+		gps_req.components.components = gps_req.components.WORLD_OBJECT_NAMES
+		
+		part_in_scene = False
+		while not rospy.is_shutdown() and not part_in_scene:
+			# This call takes a while when rgbd sensor is set
+			gps_resp = self.scene_srv.call(gps_req)
+			# check if 'part' is in the answer
+			for collision_obj in gps_resp.scene.world.collision_objects:
+				if collision_obj.id == object_name:
+					part_in_scene = True
+					break
+			else:
+				rospy.sleep(1.0)
+
+		rospy.loginfo("'" + object_name + "'' is in scene!")
+
+	def grasp_object(self, object_pose):
+		rospy.loginfo("Removing any previous 'part' object")
+		self.scene.remove_attached_object("arm_tool_link")
+		self.scene.remove_world_object("part")
+		self.scene.remove_world_object("table")
+		rospy.loginfo("Clearing octomap")
+		self.clear_octomap_srv.call(EmptyRequest())
+		rospy.sleep(2.0)  # Removing is fast
+		rospy.loginfo("Adding new 'part' object")
+
+		rospy.loginfo("Object pose: %s", object_pose.pose)
+		object_pose.pose.position.z += 0.016
+		
+		#Add object description in scene
+		self.scene.add_box("part", object_pose, (self.object_depth, self.object_width, self.object_height))
+
+		rospy.loginfo("Second%s", object_pose.pose)
+		set_table_pose = copy.deepcopy(object_pose)
+
+		#define a virtual table below the object
+		# table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
+		table_height = self.table_pose.pose.position.z+0.025
+		table_width  = self.table_pose.pose.orientation.y
+		table_depth  = self.table_pose.pose.orientation.x
+		set_table_pose.pose.position.x = self.table_pose.pose.position.x
+		set_table_pose.pose.position.y = self.table_pose.pose.position.y
+		set_table_pose.pose.position.z = table_height/2
+
+		self.scene.add_box("table", set_table_pose, (table_depth, table_width, table_height))		
+
+		# # We need to wait for the object part to appear
+		self.wait_for_planning_scene_object()
+		self.wait_for_planning_scene_object("table")
+
+		# compute grasps
+		possible_grasps = self.sg.create_grasps_from_object_pose(object_pose)
+		self.pickup_ac	
+		goal = createPickupGoal(
+			"arm_torso", "part", object_pose, possible_grasps, self.links_to_allow_contact)
+
+		rospy.loginfo("Sending goal")
+		self.pickup_ac.send_goal(goal)			# Send the goal to the action server (/pickup) and wait for the result, but where is the server?
+		rospy.loginfo("Waiting for result")
+		self.pickup_ac.wait_for_result()		
+		result = self.pickup_ac.get_result()
+		rospy.logdebug("Using torso result: " + str(result))
+		rospy.loginfo(
+			"Pick result: " +
+		str(moveit_error_dict[result.error_code.val]))
+
+		return result.error_code.val	# Return the error code
+
+	def place_object(self, object_pose):
+		rospy.loginfo("Clearing octomap")		## why clean octomap?
+		self.clear_octomap_srv.call(EmptyRequest())
+		possible_placings = self.sg.create_placings_from_object_pose(
+			object_pose)
+		# Try only with arm
+		rospy.loginfo("Trying to place using only arm")
+		goal = createPlaceGoal(
+			object_pose, possible_placings, "arm", "part", self.links_to_allow_contact)
+		rospy.loginfo("Sending goal")
+		self.place_ac.send_goal(goal)
+		rospy.loginfo("Waiting for result")
+
+		self.place_ac.wait_for_result()
+		result = self.place_ac.get_result()
+		rospy.loginfo(str(moveit_error_dict[result.error_code.val]))
+
+		if str(moveit_error_dict[result.error_code.val]) != "SUCCESS":
+			rospy.loginfo(
+				"Trying to place with arm and torso")
+			# Try with arm and torso
+			goal = createPlaceGoal(
+				object_pose, possible_placings, "arm_torso", "part", self.links_to_allow_contact)
+			rospy.loginfo("Sending goal")
+			self.place_ac.send_goal(goal)
+			rospy.loginfo("Waiting for result")
+
+			self.place_ac.wait_for_result()
+			result = self.place_ac.get_result()
+			rospy.logerr(str(moveit_error_dict[result.error_code.val]))
+		
+		# print result
+		rospy.loginfo(
+			"Result: " +
+			str(moveit_error_dict[result.error_code.val]))
+		rospy.loginfo("Removing previous 'part' object")
+		self.scene.remove_world_object("part")
+
+		return result.error_code.val
+
 #############################################################################
 	# Not used at the moment
 	def clean_table_cb(self,goal):
@@ -262,148 +402,6 @@ class PickAndPlaceServer(object):
 			rospy.loginfo("Table pose: %s", self.table_pose)
 		else:
 			rospy.logwarn('\033[91m' + "Received goal is None" + '\033[0m')
-
-
-	def pick_cb(self, goal):
-		"""
-		:type goal: PickUpPoseGoal
-		"""
-		error_code = self.grasp_object(goal.object_pose)
-		self.object_pose = copy.deepcopy(goal.object_pose)
-		p_res = PickUpPoseResult()
-		p_res.error_code = error_code
-		if error_code != 1:
-			self.pick_as.set_aborted(p_res)
-		else:
-			self.pick_as.set_succeeded(p_res)	# Acrion server sends a result to the client
-
-	def place_cb(self, goal):
-		"""
-		:type goal: PickUpPoseGoal
-		"""
-		error_code = self.place_object(goal.object_pose)
-		p_res = PickUpPoseResult()
-		p_res.error_code = error_code
-		if error_code != 1:
-			self.place_as.set_aborted(p_res)
-		else:
-			self.place_as.set_succeeded(p_res)
-
-	def wait_for_planning_scene_object(self, object_name='part'):
-		rospy.loginfo(
-			"Waiting for object '" + object_name + "'' to appear in planning scene...")
-		gps_req = GetPlanningSceneRequest()
-		gps_req.components.components = gps_req.components.WORLD_OBJECT_NAMES
-		
-		part_in_scene = False
-		while not rospy.is_shutdown() and not part_in_scene:
-			# This call takes a while when rgbd sensor is set
-			gps_resp = self.scene_srv.call(gps_req)
-			# check if 'part' is in the answer
-			for collision_obj in gps_resp.scene.world.collision_objects:
-				if collision_obj.id == object_name:
-					part_in_scene = True
-					break
-			else:
-				rospy.sleep(1.0)
-
-		rospy.loginfo("'" + object_name + "'' is in scene!")
-
-	def grasp_object(self, object_pose):
-		rospy.loginfo("Removing any previous 'part' object")
-		self.scene.remove_attached_object("arm_tool_link")
-		self.scene.remove_world_object("part")
-		self.scene.remove_world_object("table")
-		rospy.loginfo("Clearing octomap")
-		self.clear_octomap_srv.call(EmptyRequest())
-		rospy.sleep(2.0)  # Removing is fast
-		rospy.loginfo("Adding new 'part' object")
-
-		rospy.loginfo("Object pose: %s", object_pose.pose)
-		object_pose.pose.position.z += 0.016
-		
-		#Add object description in scene
-		self.scene.add_box("part", object_pose, (self.object_depth, self.object_width, self.object_height))
-
-		rospy.loginfo("Second%s", object_pose.pose)
-		set_table_pose = copy.deepcopy(object_pose)
-
-		#define a virtual table below the object
-		# table_height = object_pose.pose.position.z - 0.016 - self.object_height/2 + 0.005
-		table_height = self.table_pose.pose.position.z+0.025
-		table_width  = self.table_pose.pose.orientation.y
-		table_depth  = self.table_pose.pose.orientation.x
-		set_table_pose.pose.position.x = self.table_pose.pose.position.x
-		set_table_pose.pose.position.y = self.table_pose.pose.position.y
-		set_table_pose.pose.position.z = table_height/2
-
-		self.scene.add_box("table", set_table_pose, (table_depth, table_width, table_height))		# What does this do? ############
-
-		# # We need to wait for the object part to appear
-		self.wait_for_planning_scene_object()
-		self.wait_for_planning_scene_object("table")
-
-		# compute grasps
-		possible_grasps = self.sg.create_grasps_from_object_pose(object_pose)
-		self.pickup_ac	
-		goal = createPickupGoal(
-			"arm_torso", "part", object_pose, possible_grasps, self.links_to_allow_contact)
-
-		rospy.loginfo("Sending goal")
-		self.pickup_ac.send_goal(goal)			# Send the goal to the action server (/pickup) and wait for the result, but where is the server?
-		rospy.loginfo("Waiting for result")
-		self.pickup_ac.wait_for_result()		
-		result = self.pickup_ac.get_result()
-		rospy.logdebug("Using torso result: " + str(result))
-		rospy.loginfo(
-			"Pick result: " +
-		str(moveit_error_dict[result.error_code.val]))
-
-		return result.error_code.val	# Return the error code
-
-		
-
-	def place_object(self, object_pose):
-		rospy.loginfo("Clearing octomap")		## why clean octomap?
-		self.clear_octomap_srv.call(EmptyRequest())
-		possible_placings = self.sg.create_placings_from_object_pose(
-			object_pose)
-		# Try only with arm
-		rospy.loginfo("Trying to place using only arm")
-		goal = createPlaceGoal(
-			object_pose, possible_placings, "arm", "part", self.links_to_allow_contact)
-		rospy.loginfo("Sending goal")
-		self.place_ac.send_goal(goal)
-		rospy.loginfo("Waiting for result")
-
-		self.place_ac.wait_for_result()
-		result = self.place_ac.get_result()
-		rospy.loginfo(str(moveit_error_dict[result.error_code.val]))
-
-		if str(moveit_error_dict[result.error_code.val]) != "SUCCESS":
-			rospy.loginfo(
-				"Trying to place with arm and torso")
-			# Try with arm and torso
-			goal = createPlaceGoal(
-				object_pose, possible_placings, "arm_torso", "part", self.links_to_allow_contact)
-			rospy.loginfo("Sending goal")
-			self.place_ac.send_goal(goal)
-			rospy.loginfo("Waiting for result")
-
-			self.place_ac.wait_for_result()
-			result = self.place_ac.get_result()
-			rospy.logerr(str(moveit_error_dict[result.error_code.val]))
-		
-		# print result
-		rospy.loginfo(
-			"Result: " +
-			str(moveit_error_dict[result.error_code.val]))
-		rospy.loginfo("Removing previous 'part' object")
-		self.scene.remove_world_object("part")
-
-		return result.error_code.val
-
-
 if __name__ == '__main__':
 	rospy.init_node('pick_and_place_server')
 	paps = PickAndPlaceServer()

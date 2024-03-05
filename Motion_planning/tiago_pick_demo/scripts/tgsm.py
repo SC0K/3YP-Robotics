@@ -218,9 +218,6 @@ def main():
         smach.StateMachine.add('PICK', Pick(),
                                transitions = {'success':'NAVIGATETOSURFACE1', 'failure':'task_failed'})
 
-        smach.StateMachine.add('NAVIGATETOSURFACE1', NavigateToSurface(target_location=surface_1),
-                                transitions = {'success':'Table1', 'failure':'task_failed'})
-
         smach.StateMachine.add('Table1', TableID(),
                                transitions = {'success':'CLEANSURFACE1', 'failure':'task_failed'},
                                remapping={'table_id': 'table_id1'})
