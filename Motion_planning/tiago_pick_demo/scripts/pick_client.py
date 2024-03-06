@@ -454,7 +454,8 @@ class AprilTagDetector:
 		rospy.loginfo("Table ID is set to: " + str(self.table_id))	
 	def process_info(self, msg):
 		# tag id: [table_height, table_width, table_depth]
-		id_to_info = {0: [0.3, 1.2, 0.6], 1: [0.3, 1.2, 0.6],2: [0.3, 1.2, 0.6],3: [0.6, 1.2, 0.6],4: [0.6, 1.2, 0.6]}
+		# id_to_info = {0: [0.3, 1.2, 0.6], 1: [0.3, 1.2, 0.6],2: [0.3, 1.2, 0.6],3: [0.6, 1.2, 0.6],4: [0.6, 1.2, 0.6]}
+		id_to_info = {0: [0.8, 1.2, 0.6], 1: [0.8, 1.2, 0.6],2: [0.8, 1.2, 0.6],3: [0.8, .5, 0.5],4: [0.8, 1.2, 0.6], 5: [0.8, 1.2, 0.6],6: [0.8, 1.2, 0.6]}
 
 		for detection in msg.detections:
 			tag_id = detection.id[0]	

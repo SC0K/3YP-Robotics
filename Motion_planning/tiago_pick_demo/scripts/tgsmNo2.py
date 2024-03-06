@@ -62,7 +62,7 @@ class NavigateToSurface(smach.State):
 class NavigateToBase(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['success', 'failure'])
-        self.target_location = [0, 0, 0, 0, 0, 1] # assumes spawns at base
+        self.target_location = [-0.5, 0, 0, 0, 0, 1] # assumes spawns at base
         self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.client.wait_for_server()
 
@@ -111,7 +111,7 @@ class Pick(smach.State):
             return 'failure'
         
 class CleanSurface(smach.State):
-    def __init__(self,timeout_seconds = 60):
+    def __init__(self,timeout_seconds = 70):
         smach.State.__init__(self, outcomes=['success', 'failure','timeout'])
         self.client = actionlib.SimpleActionClient('cleaning_action', CleaningAction)
         self.client.wait_for_server()
@@ -210,34 +210,34 @@ def main():
         # smach.StateMachine.add('NAVIGATETOSURFACE1', NavigateToSurface(target_location=surface_1),
         #                        transitions = {'success':'CLEANSURFACE1', 'failure':'RETURNTOBASE'})
         smach.StateMachine.add('NAVIGATETOSPONGE', NavigateToSurface(target_location=sponge_table),
-                                transitions = {'success':'sponge', 'failure':'task_failed'})
+                                transitions = {'success':'sponge', 'failure':'RETURNTOBASE'})
                                 
         smach.StateMachine.add('sponge', TableID(),
-                               transitions = {'success':'PICK', 'failure':'task_failed'},
+                               transitions = {'success':'PICK', 'failure':'RETURNTOBASE'},
                                remapping={'table_id': 'sponge_id'})
         
         smach.StateMachine.add('PICK', Pick(),
-                               transitions = {'success':'NAVIGATETOSURFACE1', 'failure':'task_failed'})
+                               transitions = {'success':'NAVIGATETOSURFACE1', 'failure':'RETURNTOBASE'})
 
         smach.StateMachine.add('NAVIGATETOSURFACE1', NavigateToSurface(target_location=surface_1),
-                                transitions = {'success':'Table1', 'failure':'task_failed'})
+                                transitions = {'success':'Table1', 'failure':'NAVIGATETOSURFACE2'})
 
         smach.StateMachine.add('Table1', TableID(),
-                               transitions = {'success':'CLEANSURFACE1', 'failure':'task_failed'},
+                               transitions = {'success':'CLEANSURFACE1', 'failure':'NAVIGATETOSURFACE2'},
                                remapping={'table_id': 'table_id1'})
        
         smach.StateMachine.add('CLEANSURFACE1', CleanSurface(),
-                               transitions = {'success':'NAVIGATETOSURFACE2', 'failure':'task_failed', 'timeout' : 'RETURNTOBASE'})
+                               transitions = {'success':'NAVIGATETOSURFACE2', 'failure':'RETURNTOBASE', 'timeout' : 'NAVIGATETOSURFACE2'})
                                
         smach.StateMachine.add('NAVIGATETOSURFACE2', NavigateToSurface(target_location=surface_2),
-        			transitions = {'success':'Table2', 'failure':'task_failed'})
+        			transitions = {'success':'Table2', 'failure':'RETURNTOBASE'})
         			
         smach.StateMachine.add('Table2', TableID(),
-                               transitions = {'success':'CLEANSURFACE2', 'failure':'task_failed'},
+                               transitions = {'success':'CLEANSURFACE2', 'failure':'RETURNTOBASE'},
                                remapping={'table_id': 'table_id2'})
         			
         smach.StateMachine.add('CLEANSURFACE2', CleanSurface(),
-                               transitions = {'success':'RETURNTOBASE', 'failure':'task_failed', 'timeout' : 'RETURNTOBASE'})	
+                               transitions = {'success':'RETURNTOBASE', 'failure':'RETURNTOBASE', 'timeout' : 'RETURNTOBASE'})	
                                
         smach.StateMachine.add('RETURNTOBASE', NavigateToBase(),
                                 transitions={'success':'returned_to_base', 'failure':'task_failed'})        
@@ -264,8 +264,12 @@ def main():
         # smach.StateMachine.add('RETURNTOBASE', ReturnToBase(base_location=base),
         #                        transitions={'success':'returned_to_base', 'failure':'task_failed'})
 
+    sis = smach_ros.IntrospectionServer('tg', sm, '/Cleaning_State_Machine')
+    sis.start()
+    
     outcome = sm.execute()
-
+    rospy.spin()
+    sis.stop()
 
 
 if __name__ == '__main__':

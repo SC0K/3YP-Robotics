@@ -25,7 +25,7 @@ class CleanMotion():
                 group_arm_torso.set_max_velocity_scaling_factor(1.0)
                 group_arm_torso.set_planning_time(20.0)  # Increase planning time
                 table_pose = goal.object_pose
-                sponge_width = 0.1
+                sponge_width = 0.05
                 table_width = table_pose.pose.orientation.y-0.34
                 table_depth = table_pose.pose.orientation.x-0.1
                 table_center_y = table_pose.pose.position.y
@@ -39,12 +39,12 @@ class CleanMotion():
                     table_center_x = 0.6
                 
                 ## Dont change these values for now
-                table_width = 0.4
+                table_width = 0.5
                 table_depth = 0.3
                 table_center_y = 0.0
                 table_center_x = 0.7 # 0.7
-                table_center_z = 1.0 #table_pose.pose.position.z + 0.4	
-                step_num = math.floor(table_width/sponge_width) #step_num = math.floor(table_width/sponge_width+1)
+                table_center_z = 1.0	# table_pose.pose.position.z + 0.4
+                step_num = math.floor(table_width/sponge_width+1)  # 4
                 
                 waypoints = []
                 waypoints_y = np.linspace(table_center_y-table_width/2+sponge_width/2, table_center_y+table_width/2-sponge_width/2, step_num)
@@ -77,12 +77,11 @@ class CleanMotion():
                 start = rospy.Time.now()
                 # group_arm_torso.set_goal_position_tolerance(0.5)  # 5 cm
                 # group_arm_torso.set_goal_orientation_tolerance(1.5)  # 0.5 radians
-                rospy.loginfo('\033[92m' + "Executing plan"+ '\033[0m')
                 group_arm_torso.execute(plan, wait=True)
-                # rospy.sleep(30)
-                group_arm_torso.stop()
+                # group_arm_torso.stop()
                 rospy.loginfo("Motion duration: %s seconds" % (rospy.Time.now() - start).to_sec())
                 # moveit_commander.roscpp_shutdown()
+                group_arm_torso.stop()
                 result.error_code = 1
                 self.clean_table_as.set_succeeded(result)
 

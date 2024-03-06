@@ -22,18 +22,18 @@ def clean_table():
 
     ## These are the maximum specifications of the table for which the arm can clean in one go. ##
     sponge_width = 0.05
-    table_width = 0.5
+    table_width = 0.4
     table_depth = 0.3
     table_center_y = 0.0
-    table_center_x = 0.6     # red axis
+    table_center_x = 0.7     # red axis
     table_center_z = 1.0
-    step_num = 4
+    step_num = 3
     # step_num = math.floor(table_width/(sponge_width))  # Decrease number of waypoints
     
     waypoints = []
     waypoints_y = np.linspace(table_center_y-table_width/2+sponge_width/2, table_center_y+table_width/2-sponge_width/2, step_num)
     waypoints_x = [table_center_x-table_depth/2+sponge_width/2, table_center_x+table_depth/2-sponge_width/2-0.05]
-    waypoints_z_angle = np.linspace(-45, 45, step_num)
+    waypoints_z_angle = np.linspace(-60, 60, step_num)
 
     for i in range(step_num):
         for x in waypoints_x:
